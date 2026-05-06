@@ -37,8 +37,8 @@ char *buff; // = malloc(MAX_FILENAME);
 long long s = 0;
 // list entries (default)
 int list = 1;
-// target needed bool
-int abuff = 1;
+// // target needed bool
+// int abuff = 1;
 
 
 // prototypes
@@ -85,125 +85,97 @@ int main(int argc, char *argv[])
     }
     printf("found cwd\n");
 
+
     if (argc > 1)
+    // 2 or 3
     {
-        printf("found two args\n");
-        // du routes
-        if (strcmp(argv[1], "du") != 0)
+        if (strcmp(argv[1], "du") == 0)
         {
-            printf("chose a new target: %s\n", argv[1]);
+            // disk usage route
             list = 0;
-            if (argc > 2)
+            if (argc == 3)
             {
-                printf("concatenating buff & argv[2]...\n");
-                printf("buff: %s, argv[2]: %s\n", buff, argv[2]);
                 strcat(buff, argv[2]);
-                printf("buff (after concat): %s\n", buff);
                 if (stat(buff, &st) != 0)
                 {
                     printf("err, does not exist: %s\n", buff);
                     return 1;
                 }
-                else
-                {
-                    printf("buff: %s exists, abuff = 0\n", buff);
-                    abuff = 0;
-                }
             }
-            // else
-            // {
-            //     printf("du used; turning list off\n");
-            //     list = 0;
-            // }
         }
-        // else just assume its a path & handle error / doesn't exist
-        // also assume buff is valid
         else
         {
-            printf("chose: du, buff: %s\n", buff);
-            // strcat(buff, argv[2]);
-            if (argc > 2)
-            {
-                strcat(buff, argv[2]);
+            // list route
+            if (argc == 3)
+            { 
+                // not intended use
+                printf("too many args for list\n");
+                return 1;
             }
+            strcat(buff, argv[1]);
             if (stat(buff, &st) != 0)
             {
-                // return if doesn't exist
                 printf("err, does not exist: %s\n", buff);
                 return 1;
             }
-            else
-            {
-                // otherwise, turn target needed off
-                abuff = 0;
-                // and turn list off
-                list = 0;
-            }
+            // abuff = 0;
         }
     }
+    // else, cwd
 
-    // // argument handling
-    // if (argc > 3)
-    // {
-    //     printf("[OPTIONS] du:/path; lx ~/path (default path: cwd)\n");
-    //     return 1;
-    // }
-    // // wait until args are verified
-    // char buff[MAX_FILENAME];
+
     // if (argc > 1)
     // {
-    //     if (strcmp(argv[1], "du") == 0)
+    //     printf("found two args\n");
+    //     // list routes
+    //     if (strcmp(argv[1], "du") != 0)
     //     {
-    //         list = 0;
-    //     }
-    //     else if (argv[1][0] == 'd' && argv[1][1] == 'u' && argv[1][2] == ':')
-    //     {
-    //         for (int i = 3, n = strlen(argv[1]); i < n; i++)
+    //         printf("chose a new target: %s\n", argv[1]);
+    //         // list = 0;
+    //         if (argc > 2)
     //         {
-    //             strcpy(&buff[i-3], &argv[1][i]);
-    //         }
-    //         printf("buff: %s\n", buff);
-    //         list = 0;
-    //         abuff = 0;
-    //     }
-    //     else
-    //     {
-    //         // if the ssecond arg doesn't have a leading /:
-    //         if (argv[1][0] == '/')
-    //         {
-    //             // get the cwd
-    //             if (getcwd(buff, sizeof(buff)) == NULL)
-    //             {
-    //                 return 1;
-    //             }
-    //             // append '/' and then append the second arg
-    //             strcat(strcat(buff, "/"), argv[1]);
-    //             // if it doesn't exist, inform & exit
+    //             printf("concatenating buff & argv[2]...\n");
+    //             printf("buff: %s, argv[2]: %s\n", buff, argv[2]);
+    //             strcat(buff, argv[2]);
+    //             printf("buff (after concat): %s\n", buff);
     //             if (stat(buff, &st) != 0)
     //             {
-    //                 printf("%s\n", "[OPTIONS]: du = disk use, /path/to = alt. dir\n");
+    //                 printf("err, does not exist: %s\n", buff);
     //                 return 1;
     //             }
     //             else
     //             {
-    //                 // otherwise, set abuff to no target needed
+    //                 printf("buff: %s exists, abuff = 0\n", buff);
     //                 abuff = 0;
     //             }
     //         }
+    //     }
+    //     // du routes
+    //     // else just assume its a path & handle error / doesn't exist
+    //     // also assume buff is valid
+    //     else
+    //     {
+    //         printf("chose: du, buff: %s\n", buff);
+    //         // strcat(buff, argv[2]);
+    //         if (argc > 2)
+    //         {
+    //             strcat(buff, argv[2]);
+    //         }
+    //         if (stat(buff, &st) != 0)
+    //         {
+    //             // return if doesn't exist
+    //             printf("err, does not exist: %s\n", buff);
+    //             return 1;
+    //         }
     //         else
     //         {
-    //             // struct stat path_strat;
-    //             if (stat(buff, &st) != 0)
-    //             {
-    //                 printf("%s does not exist\n", buff);
-    //                 return 1;
-    //             }
-    //             strcpy(buff, argv[1]);
+    //             // otherwise, turn target needed off
     //             abuff = 0;
+    //             // and turn list off
+    //             list = 0;
     //         }
     //     }
     // }
-    // // end arg validation & handling
 
     if (ftype(buff) == 1)
     {
@@ -320,13 +292,10 @@ int init_fs (void)
     if (getcwd(buff, MAX_FILENAME) == NULL)
     {
         printf("could not find/open the cwd");
-        return 0;
-        // return char *cwd = "00";
+        return 0; // false
     }
-    // cwd = strcat(buff, "/");
     strcat(buff, "/");
-    // return cwd;
-    return 1;
+    return 1; // true
 }
 
 
