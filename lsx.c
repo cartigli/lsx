@@ -6,10 +6,10 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+// constants
 #define MAX_FILENAME 1000
-#define MALLOC_ERROR "malloc failed to return a valid array"
 #define POSIX_BLOCK_SIZE 512
-#define CHAR_BYTE_SIZE sizeof(char)
+#define MALLOC_ERROR "malloc failed to return a valid array"
 
 
 // global struct for scan results
@@ -25,20 +25,19 @@ dir_entry *dir_entries = NULL;
 // struct for dir.entries
 struct stat st;
 
-// cwd
-char cwd[MAX_FILENAME];
+// cwd 
+char *buff;
 
-// buffer for d_name's
-// const char *buff[MAX_FILENAME];
-char *buff; // = malloc(MAX_FILENAME);
 
 // globals vars
 // size counter
-long long s = 0;
+long long sx = 0;
 // list entries (default)
 int list = 1;
-// // target needed bool
-// int abuff = 1;
+// byte or block ticker
+int blocks = 1;
+// recursive ls indicator
+int flat = 1;
 
 
 // prototypes
@@ -52,11 +51,16 @@ void ls_f(char s[]);
 int init_fs(void);
 // count each file's bytes 
 // no account for dir.entries atm
-long long summ(void);
+// long long summ(void);
+void summ(void); // just grab globals
 // alt. block_count * block_sz
-long long block_summ(void);
+long long block_summ(void); // ditto here
+// workers
+void work_summ(void);
+void work_block(void);
 // pretty print summ's result
-void format_sz(long long x);
+// void format_sz(long long x);
+void pretty_print(void); // & here
 // free the linked list
 void xfree(void);
 
@@ -65,9 +69,9 @@ void xfree(void);
 int main(int argc, char *argv[])
 {
     // argument handling
-    if (argc > 3)
+    if (argc > 4)
     {
-        printf("[OPTIONS] du:/path; lx ~/path (default path: cwd)\n");
+        printf("too many args\n");
         return 1;
     }
 
@@ -76,113 +80,130 @@ int main(int argc, char *argv[])
     {
         return 1;
     }
-    printf("buff allocated\n");
 
     if (!(init_fs()))
     {
+        // if NOT a succesful fs init:
         printf("failed to find cwd\n");
         return 1;
     }
-    printf("found cwd\n");
 
-
-    if (argc > 1)
-    // 2 or 3
+    // arg assesment & validation
+    if (argc > 1) // 2-4 args
     {
+        // disk usage route
         if (strcmp(argv[1], "du") == 0)
         {
-            // disk usage route
             list = 0;
             if (argc == 3)
+            // lx du /path/to
             {
-                strcat(buff, argv[2]);
+                if (strcmp(argv[2], "bytes") == 0)
+                {
+                    blocks = 0;
+                }
+                else
+                {
+                    strcat(buff, argv[2]);
+                    if (stat(buff, &st) != 0)
+                    {
+                        printf("err, does not exist: %s\n", buff);
+                        return 1;
+                    }
+                }
+            }
+            else if (argc == 4)
+            {
+                // blocks or bytes
+                if (strcmp(argv[2], "bytes") == 0)
+                {
+                    // [ CMD ] lx du bytes /path
+                    blocks = 0;
+                }
+                else if (strcmp(argv[2], "blocks") != 0)
+                {
+                    // only other acceptable (albeit useless)
+                    // option/flag is blocks, but its the default
+                    printf("incorrect use of arguments\n");
+                    return 1;
+                }
+                strcat(buff, argv[3]);
                 if (stat(buff, &st) != 0)
                 {
                     printf("err, does not exist: %s\n", buff);
                     return 1;
                 }
+                // alt. is default
             }
         }
         else
         {
             // list route
             if (argc == 3)
-            { 
-                // not intended use
-                printf("too many args for list\n");
-                return 1;
-            }
-            strcat(buff, argv[1]);
-            if (stat(buff, &st) != 0)
             {
-                printf("err, does not exist: %s\n", buff);
+                if (strlen(argv[1]) == 1 && argv[1][0] == 'r')
+                {
+                    printf("three args provided incorrectly for list\n");
+                    return 1;
+                }
+                // recursive : true
+                flat = 0;
+                // concatenate the new targ
+                strcat(buff, argv[2]);
+                // check if it exists
+                if (stat(buff, &st) != 0)
+                {
+                    printf("err, does not exist: %s\n", buff);
+                    return 1;
+                }
+            }
+            else if (argc == 2)
+            {
+                // othewise, if argcv[1] is r
+                if (strlen(argv[1]) == 1 && argv[1][0] == 'r')
+                {
+                    // enable recursive
+                    flat = 0;
+                }
+                // if argv[1] isn't 'r', try the path
+                else
+                {
+                    strcat(buff, argv[1]);
+                    if (stat(buff, &st) != 0)
+                    {
+                        printf("err, does not exist: %s\n", buff);
+                        return 1;
+                    }
+                }
+            }
+            else if (argc == 4)
+            {
+                printf("no list functions w.four args\n");
                 return 1;
             }
-            // abuff = 0;
         }
     }
-    // else, cwd
+    // else, use cwd
 
-
-    // if (argc > 1)
-    // {
-    //     printf("found two args\n");
-    //     // list routes
-    //     if (strcmp(argv[1], "du") != 0)
-    //     {
-    //         printf("chose a new target: %s\n", argv[1]);
-    //         // list = 0;
-    //         if (argc > 2)
-    //         {
-    //             printf("concatenating buff & argv[2]...\n");
-    //             printf("buff: %s, argv[2]: %s\n", buff, argv[2]);
-    //             strcat(buff, argv[2]);
-    //             printf("buff (after concat): %s\n", buff);
-    //             if (stat(buff, &st) != 0)
-    //             {
-    //                 printf("err, does not exist: %s\n", buff);
-    //                 return 1;
-    //             }
-    //             else
-    //             {
-    //                 printf("buff: %s exists, abuff = 0\n", buff);
-    //                 abuff = 0;
-    //             }
-    //         }
-    //     }
-    //     // du routes
-    //     // else just assume its a path & handle error / doesn't exist
-    //     // also assume buff is valid
-    //     else
-    //     {
-    //         printf("chose: du, buff: %s\n", buff);
-    //         // strcat(buff, argv[2]);
-    //         if (argc > 2)
-    //         {
-    //             strcat(buff, argv[2]);
-    //         }
-    //         if (stat(buff, &st) != 0)
-    //         {
-    //             // return if doesn't exist
-    //             printf("err, does not exist: %s\n", buff);
-    //             return 1;
-    //         }
-    //         else
-    //         {
-    //             // otherwise, turn target needed off
-    //             abuff = 0;
-    //             // and turn list off
-    //             list = 0;
-    //         }
-    //     }
-    // }
-
+    // process
+    // HERE till EO(block) moved to
+    // void cwd_processor(void)
     if (ftype(buff) == 1)
     {
         if (list)
         {
-            ls_f(buff); // non-recursive
-            // make a copy of the pointer therein
+            // ls route
+            if (flat)
+            {
+                // non-recursive
+                ls_f(buff);
+            }
+            else
+            {
+                // recursive
+                ls_c(buff);
+            }
+            // make a copy of the pointer
             dir_entry *entries = dir_entries;
             while (entries != NULL)
             {
@@ -192,21 +213,48 @@ int main(int argc, char *argv[])
         }
         else
         {
-            // if not list, then du
-            ls_c(buff); // recursive
-            long long total = block_summ();
-            // float ptotal = (float)total;
-            printf("bytes: %.1f\n", (float)total);
-            format_sz(total);
+            // du route
+            ls_c(buff); // recursive always
+            if (blocks)
+            {
+                // mimic du's sizing strat
+                block_summ();
+            }
+            else
+            {
+                // else, bytes
+                summ();
+            }
+            pretty_print();
         }
+        // either way, always xfree()
         xfree();
-        return 0;
     }
     else if (ftype(buff) == 2)
     {
         printf("cwd: %s (type: file)\n", buff);
+        dir_entry *single = malloc(MAX_FILENAME);
+        if (single == NULL)
+        {
+            printf("%s\n", MALLOC_ERROR);
+            return 1;
+        }
+        // single item linked list lol
+        single->f = buff;
+        single->type = 2;
+        single->next= dir_entries;
+        dir_entries = single;
+        if (blocks)
+        {
+            block_summ();
+        }
+        else
+        {
+            summ();
+        }
+        pretty_print();
     }
-    else 
+    else
     {
         printf("cwd: %s (type: NaN)\n", buff);
     }
@@ -256,7 +304,7 @@ void ls_c(char s[])
                     // check the type (drop symlinks)
                     int ft = ftype(pdir);
                     if (ft == 20) {
-                        // + free fdupe when sym
+                        // + free fdupe when symlink
                         free(fdupe);
                         continue;
                     }
@@ -286,7 +334,6 @@ void ls_c(char s[])
 }
 
 
-// check exists and write cwd to XVARX
 int init_fs (void)
 {
     if (getcwd(buff, MAX_FILENAME) == NULL)
@@ -375,20 +422,22 @@ int ftype(char s[])
         return 0;
     }
     if (S_ISLNK(st.st_mode)) {
+        // symlink
         return 20;
     }
-
     if (S_ISREG(st.st_mode)) {
+        // 'reg' file
         return 2;
     }
     if (S_ISDIR(st.st_mode)) {
+        // directory
         return 1;
     }
     return 0;
 }
 
 
-long long summ(void)
+void summ(void)
 {
     // don't loose the pointer !
     dir_entry *sz_tmp = dir_entries;
@@ -397,23 +446,25 @@ long long summ(void)
     {
         if (stat(sz_tmp->f, &st) == 0)
         {
-            if (sz_tmp->type == 1)
+            if (sz_tmp->type == 2)
             {
-                s = s + 40;
-            }
-            else if (sz_tmp->type == 2)
-            {
-                s = s + (long long)st.st_size;
+                work_summ();
             }
         }
         else
         {
-            printf("couldn't open (summ) %s\n", sz_tmp->f);
+            printf("(block summ) could not open %s\n", sz_tmp->f);
         }
         sz_tmp = sz_tmp->next;
     }
-    return s;
 }
+
+
+void work_summ(void)
+{
+    sx = sx + (long long)st.st_size;
+}
+
 
 
 long long block_summ(void)
@@ -425,65 +476,67 @@ long long block_summ(void)
     {
         if (stat(sz_tmp->f, &st) == 0)
         {
-            if (sz_tmp->type == 1)
+            if (sz_tmp->type == 2)
             {
-                s = s + 40;
-            }
-            else if (sz_tmp->type == 2)
-            {
-                s = s + (long long)st.st_blocks;
+                work_block();
             }
         }
         else
         {
-            printf("couldn't open (summ) %s\n", sz_tmp->f);
+            printf("(block summ) could not open %s\n", sz_tmp->f);
         }
         sz_tmp = sz_tmp->next;
     }
-    return s * POSIX_BLOCK_SIZE;
+    return sx * POSIX_BLOCK_SIZE;
 }
 
 
-void format_sz(long long x)
+void work_block(void)
 {
+    sx = sx + (long long)st.st_blocks;
+}
+
+
+void pretty_print(void)
+{
+    printf("raw sx: %lld\n", sx);
     int i = 0;
     long long lim = 1024;
-    while (x > lim)
+    while (sx > lim)
     {
-        x = x / 1024;
+        sx = sx / 1024;
         i++;
     }
-    
-    // char *vt = malloc(sizeof(char) * 4);
     char *vt;
 
     if (i == 1)
     {
-        // printf("total: %lld %s\n", x, "kb");
         vt = "kb";
     }
     else if (i == 2)
     {
-        // printf("total: %lld %s\n", x, "mb");
         vt = "mb";
     }
     else if (i == 3)
     {
-        // printf("total: %lld %s\n", x, "gb");
         vt = "gb";
     }
     else if (i == 4)
     {
-        // printf("total: %lld %s\n", x, "tb");
         vt = "tb";
     }
     else
     {
-        // printf("total: %lld bytes\n", x);
-        vt = "XX";
+        if (blocks)
+        {
+            vt = "blocks";
+        }
+        else
+        {
+            vt = "bytes";
+        }
     }
-    printf("  size on disk: %.1lld %s\n", x, vt);
-    // free(vt);
+    printf("  size on disk: %lld %s\n", sx, vt);
 }
 
 
