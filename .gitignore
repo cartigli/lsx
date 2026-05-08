@@ -3,3 +3,11 @@
 .DS_Store
 *.o
 lx
+
+reports/*
+scan_results/*
+scan-results/*
+lsx-dbg
+lsx-asan
+genericMakefile
+sanitizedMakefile

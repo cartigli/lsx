@@ -6,7 +6,6 @@ CFLAGS = -Wall -Wextra -g #j -std=gnu11
 script: lsx.c
 	$(CC) $(CFLAGS) -o lx lsx.c
 
-
 # clean rule
 clean:
 	rm -f lx
