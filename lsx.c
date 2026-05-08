@@ -9,11 +9,8 @@
 #include "lsx.h"
 
 
-// Needs a replacement for strcpy & strcat (memory integrity concerns)
-
-
 // globals trackers
-// byte counter
+// byte (or block) counter
 long long sx = 0;
 // list entries (default)
 int list = 1;
@@ -60,7 +57,7 @@ int main(int argc, char *argv[])
                 }
                 else
                 {
-                    strcat(buff, argv[2]);
+                    sf_strcat(buff, argv[2], MAX_FILENAME);
                     if (!(exists()))
                     {
                         return 1;
@@ -77,12 +74,10 @@ int main(int argc, char *argv[])
                 }
                 else if (strcmp(argv[2], "blocks") != 0)
                 {
-                    // only other acceptable (albeit useless)
-                    // option/flag is blocks, but its the default
                     printf("incorrect use of arguments\n");
                     return 1;
                 }
-                strcat(buff, argv[3]);
+                sf_strcat(buff, argv[3], MAX_FILENAME);
                 if (!(exists()))
                 {
                     return 1;
@@ -103,7 +98,7 @@ int main(int argc, char *argv[])
                 // recursive : true
                 flat = 0;
                 // concatenate the new targ
-                strcat(buff, argv[2]);
+                sf_strcat(buff, argv[2], MAX_FILENAME);
                 if (!(exists()))
                 {
                     return 1;
@@ -120,7 +115,7 @@ int main(int argc, char *argv[])
                 // if argv[1] isn't 'r', try the path
                 else
                 {
-                    strcat(buff, argv[1]);
+                    sf_strcat(buff, argv[1], MAX_FILENAME);
                     if (!(exists()))
                     {
                         return 1;
@@ -227,7 +222,7 @@ void ls_f(char s[])
             // if it doesn't end with an '/':
             // append one ONCE before the loop
             if (strcmp(&pdir[strlen(pdir) - 1], "/") != 0) {
-                strcat(pdir, "/");
+                sf_strcat(pdir, "/", MAX_FILENAME);
             }
 
             fdupe = strdup(ent->d_name);
@@ -242,7 +237,7 @@ void ls_f(char s[])
                     }
 
                     // concatenate the dir.entry & parent
-                    strcat(pdir, fdupe);
+                    sf_strcat(pdir, fdupe, MAX_FILENAME);
                     // check the type (drop symlinks)
                     int ft = ftype(pdir);
                     if (ft == 20) {
@@ -296,8 +291,35 @@ int init_fs (void)
         printf("could not find/open the cwd");
         return 0; // false
     }
-    strcat(buff, "/");
+    sf_strcat(buff, "/", MAX_FILENAME);
     return 1; // true
+}
+
+
+// C passes arguments by value
+// the pointers don't need to be saved or protected
+void sf_strcat(char *a, char *o, int bufflen)
+{
+    int lim = bufflen -1;
+
+    int c = 0;
+    while (*(a + c) && c < lim) 
+    // while str a is not NULL value
+    {
+        // move + 1
+        c++;
+    }
+    while (*o && c < lim)
+    // while new string is not NULL
+    {
+        // copy the char
+        *(a + c) = *o;
+        // and move + 1
+        c++;
+        o++;
+    }
+    // set the final char to NULL
+    *(a + c) = '\0';
 }
 
 
@@ -317,9 +339,9 @@ int lli_exists(char *fi[])
     if (stat(*fi, &st) != 0)
     {
         printf("err, does not exist: %s\n", *fi);
-        return 0;
+        return 0; // false
     }
-    return 1;
+    return 1; // true
 }
 
 
@@ -406,15 +428,14 @@ void work_block(void)
 
 void pretty_print(void)
 {
-    printf("raw sx: %lld\n", sx);
+    char *vt;
     int i = 0;
     long long lim = 1024;
     while (sx > lim)
     {
-        sx = sx / 1024;
+        sx = sx / lim;
         i++;
     }
-    char *vt;
 
     if (i == 1)
     {
@@ -459,4 +480,3 @@ void xfree(void)
     free(dir_entries);
     free(buff);
 }
-

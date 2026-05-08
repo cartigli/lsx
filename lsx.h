@@ -55,4 +55,8 @@ void pretty_print(void); // & here
 // free the linked list
 void xfree(void);
 
+// manual memory-safe strcat fx
+void sf_strcat(char *a, char *o, int bufflen);
+
+
 #endif
