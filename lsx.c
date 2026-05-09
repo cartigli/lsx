@@ -8,7 +8,6 @@
 
 #include "lsx.h"
 
-
 // globals trackers
 // byte (or block) counter
 long long sx = 0;
@@ -19,185 +18,136 @@ int blocks = 1;
 // no recursion (defualt)
 int flat = 1;
 
-
-int main(int argc, char *argv[])
-{
-    if (argc > 4)
-    {
+int main(int argc, char *argv[]) {
+    if (argc > 4) {
         printf("too many args\n");
         return 1;
     }
 
     buff = malloc(MAX_FILENAME);
-    if (buff == NULL)
-    {
+    if (buff == NULL) {
         return 1;
     }
 
-    if (!(init_fs()))
-    {
+    if (!(init_fs())) {
         // if NOT a succesful fs init:
         printf("failed to find cwd\n");
         return 1;
     }
 
     // arg assesment & validation
-    if (argc > 1) // 2-4 args
-    {
+    if (argc > 1) { // 2-4 args
         // disk usage route
-        if (strcmp(argv[1], "du") == 0)
-        {
+        if (strcmp(argv[1], "du") == 0) {
             list = 0;
-            if (argc == 3)
-            // lx du /path/to
-            {
-                if (strcmp(argv[2], "bytes") == 0)
-                {
+            if (argc == 3) {
+                // lx du /path/to
+                if (strcmp(argv[2], "bytes") == 0) {
                     blocks = 0;
-                }
-                else
-                {
+                } else {
                     sf_strcat(buff, argv[2], MAX_FILENAME);
-                    if (!(exists()))
-                    {
+                    if (!(exists())) {
                         return 1;
                     }
                 }
-            }
-            else if (argc == 4)
-            {
+            } else if (argc == 4) {
                 // blocks or bytes
-                if (strcmp(argv[2], "bytes") == 0)
-                {
+                if (strcmp(argv[2], "bytes") == 0) {
                     // [ CMD ] lx du bytes /path
                     blocks = 0;
-                }
-                else if (strcmp(argv[2], "blocks") != 0)
-                {
+                } else if (strcmp(argv[2], "blocks") != 0) {
                     printf("incorrect use of arguments\n");
                     return 1;
                 }
                 sf_strcat(buff, argv[3], MAX_FILENAME);
-                if (!(exists()))
-                {
+                if (!(exists())) {
+                    // alt. is default
                     return 1;
                 }
-                // alt. is default
             }
-        }
-        else
-        {
+        } else {
             // list route
-            if (argc == 3)
-            {
-                if (strlen(argv[1]) == 1 && argv[1][0] == 'r')
-                {
+            if (argc == 3) {
+                if (strlen(argv[1]) == 1 && argv[1][0] == 'r') {
                     printf("three args provided incorrectly for list\n");
                     return 1;
                 }
                 // recursive : true
                 flat = 0;
-                // concatenate the new targ
+                // (safely) concatenate the new targ
                 sf_strcat(buff, argv[2], MAX_FILENAME);
-                if (!(exists()))
-                {
+                if (!(exists())) {
                     return 1;
                 }
-            }
-            else if (argc == 2)
-            {
+            } else if (argc == 2) {
                 // othewise, if argcv[1] is r
-                if (strlen(argv[1]) == 1 && argv[1][0] == 'r')
-                {
+                if (strlen(argv[1]) == 1 && argv[1][0] == 'r') {
                     // enable recursive
                     flat = 0;
-                }
-                // if argv[1] isn't 'r', try the path
-                else
-                {
+                } else {
+                    // if argv[1] isn't 'r', try the path
                     sf_strcat(buff, argv[1], MAX_FILENAME);
-                    if (!(exists()))
-                    {
+                    if (!(exists())) {
                         return 1;
                     }
                 }
-            }
-            else if (argc == 4)
-            {
+            } else if (argc == 4) {
                 free(buff);
                 printf("no list functions w.four args\n");
                 return 1;
             }
         }
-    }// else, use cwd
+    } // else, use cwd
 
     // process
-    if (ftype(buff) == 1)
-    {
-        if (list)
-        {
+    if (ftype(buff) == 1) {
+        if (list) {
             // ls route
             ls_f(buff);
             dir_entry *entries = dir_entries;
-            while (entries != NULL)
-            {
+            while (entries != NULL) {
                 printf("%s\n", entries->f);
                 entries = entries->next;
             }
-        }
-        else
-        {
+        } else {
             // du route
             flat = 0;
             ls_f(buff); // recursive always
-            if (blocks)
-            {
+            if (blocks) {
                 // mimic du's sizing strat
                 block_summ();
-            }
-            else
-            {
+            } else {
                 // else, bytes
                 summ();
             }
             pretty_print();
         }
-    }
-    else if (ftype(buff) == 2)
-    {
+    } else if (ftype(buff) == 2) {
         printf("cwd: %s (type: file)\n", buff);
         dir_entry *single = malloc(MAX_FILENAME);
-        if (single == NULL)
-        {
+        if (single == NULL) {
             printf("%s\n", MALLOC_ERROR);
             return 1;
         }
         // single item linked list lol
         single->f = buff;
         single->type = 2;
-        single->next= dir_entries;
+        single->next = dir_entries;
         dir_entries = single;
-        if (blocks)
-        {
+        if (blocks) {
             block_summ();
-        }
-        else
-        {
+        } else {
             summ();
         }
         pretty_print();
-    }
-    else
-    {
+    } else {
         printf("cwd: %s (type: NaN)\n", buff);
     }
     xfree();
     return 0;
 }
 
-
-void ls_f(char s[])
-{
+void ls_f(char s[]) {
     char *s_tmp = malloc(sizeof(char) * MAX_FILENAME);
     if (s_tmp == NULL) {
         printf("%s\n", MALLOC_ERROR);
@@ -207,11 +157,11 @@ void ls_f(char s[])
     struct dirent *ent;
     strcpy(s_tmp, s);
 
-    DIR *dir = opendir (s_tmp);
+    DIR *dir = opendir(s_tmp);
     char *fdupe;
 
     if (dir != NULL) {
-        while ((ent = readdir (dir)) != NULL) {
+        while ((ent = readdir(dir)) != NULL) {
             char *pdir = malloc(sizeof(char) * (strlen(s) + MAX_FILENAME));
             if (pdir == NULL) {
                 printf("%s\n", MALLOC_ERROR);
@@ -253,41 +203,31 @@ void ls_f(char s[])
                     entry->next = dir_entries;
 
                     dir_entries = entry;
-                    if (!(flat))
-                    {
-                        if (ft == 1)
-                        {
+                    if (!(flat)) {
+                        if (ft == 1) {
                             ls_f(pdir);
                         }
                     }
                     free(fdupe);
-                }
-                else
-                {
+                } else {
                     free(pdir);
                     free(fdupe);
                 }
-            }
-            else
-            {
+            } else {
                 printf("%s\n", MALLOC_ERROR);
                 return;
             }
         }
-        (void) closedir (dir);
-    }
-    else {
+        (void)closedir(dir);
+    } else {
         printf("couldn't open (ls_f) %s\n", s);
         return;
     }
     free(s_tmp);
 }
 
-
-int init_fs (void)
-{
-    if (getcwd(buff, MAX_FILENAME) == NULL)
-    {
+int init_fs(void) {
+    if (getcwd(buff, MAX_FILENAME) == NULL) {
         printf("could not find/open the cwd");
         return 0; // false
     }
@@ -295,23 +235,19 @@ int init_fs (void)
     return 1; // true
 }
 
-
 // C passes arguments by value
 // the pointers don't need to be saved or protected
-void sf_strcat(char *a, char *o, int bufflen)
-{
-    int lim = bufflen -1;
+void sf_strcat(char *a, char *o, int bufflen) {
+    int lim = bufflen - 1;
 
     int c = 0;
-    while (*(a + c) && c < lim) 
-    // while str a is not NULL value
-    {
+    while (*(a + c) && c < lim) {
+        // while str a is not NULL value
         // move + 1
         c++;
     }
-    while (*o && c < lim)
-    // while new string is not NULL
-    {
+    while (*o && c < lim) {
+        // while new string is not NULL
         // copy the char
         *(a + c) = *o;
         // and move + 1
@@ -322,31 +258,23 @@ void sf_strcat(char *a, char *o, int bufflen)
     *(a + c) = '\0';
 }
 
-
-int exists(void)
-{
-    if (stat(buff, &st) != 0)
-    {
+int exists(void) {
+    if (stat(buff, &st) != 0) {
         printf("err, does not exist: %s\n", buff);
         return 0; // false
     }
     return 1; // true
 }
 
-
-int lli_exists(char *fi[])
-{
-    if (stat(*fi, &st) != 0)
-    {
+int lli_exists(char *fi[]) {
+    if (stat(*fi, &st) != 0) {
         printf("err, does not exist: %s\n", *fi);
         return 0; // false
     }
     return 1; // true
 }
 
-
-int ftype(char s[])
-{
+int ftype(char s[]) {
     if (lstat(s, &st) == -1) {
         // can't open | doesn't exist | permissions
         return 0;
@@ -366,52 +294,34 @@ int ftype(char s[])
     return 0;
 }
 
-
-void summ(void)
-{
+void summ(void) {
     // don't loose the pointer !
     dir_entry *sz_tmp = dir_entries;
 
-    while (sz_tmp != NULL)
-    {
-        if (lli_exists(&(sz_tmp->f)))
-        {
-            if (sz_tmp->type == 2)
-            {
+    while (sz_tmp != NULL) {
+        if (lli_exists(&(sz_tmp->f))) {
+            if (sz_tmp->type == 2) {
                 work_summ();
             }
-        }
-        else
-        {
+        } else {
             return;
         }
         sz_tmp = sz_tmp->next;
     }
 }
 
+void work_summ(void) { sx = sx + (long long)st.st_size; }
 
-void work_summ(void)
-{
-    sx = sx + (long long)st.st_size;
-}
-
-
-void block_summ(void)
-{
+void block_summ(void) {
     // don't loose the pointer !
     dir_entry *sz_tmp = dir_entries;
 
-    while (sz_tmp != NULL)
-    {
-        if (lli_exists(&(sz_tmp->f)))
-        {
-            if (sz_tmp->type == 2)
-            {
+    while (sz_tmp != NULL) {
+        if (lli_exists(&(sz_tmp->f))) {
+            if (sz_tmp->type == 2) {
                 work_block();
             }
-        }
-        else
-        {
+        } else {
             return;
         }
         sz_tmp = sz_tmp->next;
@@ -419,59 +329,37 @@ void block_summ(void)
     sx = sx * POSIX_BLOCK_SIZE;
 }
 
+void work_block(void) { sx = sx + (long long)st.st_blocks; }
 
-void work_block(void)
-{
-    sx = sx + (long long)st.st_blocks;
-}
-
-
-void pretty_print(void)
-{
+void pretty_print(void) {
     char *vt;
     int i = 0;
     long long lim = 1024;
-    while (sx > lim)
-    {
+    while (sx > lim) {
         sx = sx / lim;
         i++;
     }
 
-    if (i == 1)
-    {
+    if (i == 1) {
         vt = "kb";
-    }
-    else if (i == 2)
-    {
+    } else if (i == 2) {
         vt = "mb";
-    }
-    else if (i == 3)
-    {
+    } else if (i == 3) {
         vt = "gb";
-    }
-    else if (i == 4)
-    {
+    } else if (i == 4) {
         vt = "tb";
-    }
-    else
-    {
-        if (blocks)
-        {
+    } else {
+        if (blocks) {
             vt = "blocks";
-        }
-        else
-        {
+        } else {
             vt = "bytes";
         }
     }
     printf("  size on disk: %lld %s\n", sx, vt);
 }
 
-
-void xfree(void)
-{
-    while (dir_entries != NULL)
-    {
+void xfree(void) {
+    while (dir_entries != NULL) {
         dir_entry *temp = dir_entries;
         dir_entries = dir_entries->next;
         free(temp->f);
