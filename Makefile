@@ -1,6 +1,6 @@
 CC      := clang
-TARGET  := lx
-SRC     := lsx.c
+TARGET  := lx_menu
+SRC     := lx_menu.c
 CFLAGS  := -Wall -Wextra -Wpedantic -g -O1 -fno-omit-frame-pointer
 REPORTS := ./reports
 
