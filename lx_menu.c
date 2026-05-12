@@ -7,43 +7,9 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#define MAX_FILENAME 1024
+#include "fstypes.h"
 
 int SHOW_SIZES = 1;
-
-typedef struct FileSystemNode {
-    char name[MAX_FILENAME];
-    int is_dir;
-    long blocks;
-    int n_children;
-    int n_dirs;
-    struct FileSystemNode** children;
-    struct FileSystemNode* parent;
-} FileSystemNode;
-
-FileSystemNode* cwd;
-
-struct dirent *ent;
-struct stat st;
-
-int de_type(char di[]);
-int df_type(char di[]);
-char *ft_decode(FileSystemNode* dx);
-void menu(FileSystemNode* cdi);
-void fls_recursion(FileSystemNode* di, char *tbuff);
-long fl_blocks(char *fd);
-
-void untraverse(FileSystemNode* dd, char* buff);
-int traverse_to(FileSystemNode* cd);
-
-int read_from(FileSystemNode* ff);
-int view_file(char *path);
-
-void free_rfs(FileSystemNode* xd);
-void free_fs(FileSystemNode* fd);
-
-void order_rfs(FileSystemNode* ld);
-void order_fs(FileSystemNode* dd);
 
 int main(int argc, char *argv[]) {
     if (argc > 2) { return 1; }
@@ -65,17 +31,16 @@ int main(int argc, char *argv[]) {
     strcpy(ptbuff, cwd->name);
     strcat(ptbuff, "/");
 
-    fls_recursion(cwd, ptbuff);
-    order_rfs(cwd);
+    fls_recursion(cwd, ptbuff); /* index the cwd & its subdirectories */
+    order_rfs(cwd);             /* order the results by directories first */
 
-
-    initscr();
-    cbreak();
-    noecho();
+    initscr(); /* initiate ncurses screen */
+    cbreak(); /* grab all key events (except Ctrl+C) */
+    noecho(); /* hide the cursor */
 
     menu(cwd);
 
-    endwin();
+    endwin(); /* kill the window or terminal state will be corrupted */
 
     free_rfs(cwd);
     return 0;
@@ -90,9 +55,7 @@ void fls_recursion(FileSystemNode* cd, char *tbuff) {
         return;
     }
     while ((ent = readdir(cd_d)) != NULL) {
-        if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0) {
-            continue;
-        }
+        if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0) { continue; }
         children++;
     }
 
@@ -102,16 +65,15 @@ void fls_recursion(FileSystemNode* cd, char *tbuff) {
     cd->n_children = children;
     cd->children = malloc(children * sizeof(FileSystemNode*));
 
-    DIR *cd_di = opendir(tbuff);
-    while ((ent = readdir(cd_di)) != NULL) {
+    rewinddir(cd_d);
+    if (cd_d == NULL) { return; }
+    while ((ent = readdir(cd_d)) != NULL) {
         if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0) { continue; }
-
 
         FileSystemNode* entry = malloc(sizeof(FileSystemNode));
         if (entry == NULL) { return; }
 
-        /* point it to the parent */
-        entry->parent = cd;
+        entry->parent = cd; /* point it at the parent */
 
         int dtype;
         if (ent->d_type == DT_DIR) {
@@ -121,8 +83,7 @@ void fls_recursion(FileSystemNode* cd, char *tbuff) {
         }
         else if (ent->d_type == DT_REG) {
             dtype = 0;
-        }
-        else {dtype = -1; }
+        } else { dtype = -1; }
 
         /* make the full path with / + the new item's name */
         strcat(tbuff, "/");
@@ -134,10 +95,11 @@ void fls_recursion(FileSystemNode* cd, char *tbuff) {
         if (dtype == 0) {
             long blocks = fl_blocks(tbuff);
             entry->blocks = blocks;
+        } else if (dtype == 1) {
+            fls_recursion(entry, tbuff);
         }
-        if (dtype == 1) { fls_recursion(entry, tbuff); }
-        tbuff[xterm_pl] = '\0';
 
+        tbuff[xterm_pl] = '\0'; /* reset buffer to parent's path */
         cd->children[ix] = entry;
         ix++;
     }
@@ -176,6 +138,17 @@ char *ft_decode(FileSystemNode* dx) {
     return "NaN";
 }
 
+int max_strlen(FileSystemNode *cdi, int n_choices) {
+    int xstrlen;
+    int max_lenfn = 0;
+    for (int x = 0; x < n_choices; x++) {
+        xstrlen = strlen(cdi->children[x]->name);
+        if (max_lenfn < xstrlen) { max_lenfn = xstrlen; }
+    }
+
+    return max_lenfn;
+}
+
 void menu(FileSystemNode *cdi) {
     WINDOW *menu_win;
     int n_choices = cdi->n_children;
@@ -186,12 +159,7 @@ void menu(FileSystemNode *cdi) {
     int yMax, xMax;
     getmaxyx(stdscr, yMax, xMax);
 
-    int xstrlen;
-    int max_lenfn = 0;
-    for (int x = 0; x < n_choices; x++) {
-        xstrlen = strlen(cdi->children[x]->name);
-        if (max_lenfn < xstrlen) { max_lenfn = xstrlen; }
-    }
+    int max_lenfn = max_strlen(cdi, n_choices);
 
     int padding = 2;
     if (SHOW_SIZES) { padding = padding + 15; }
@@ -207,8 +175,7 @@ void menu(FileSystemNode *cdi) {
     /* calculate virtual grid of n_choices given n_dirs */
     int dir_rows;
     int n_dirs = cdi->n_dirs;
-    if (n_dirs) { dir_rows = ((n_dirs - 1) / n_cols) + 1; }
-    else { dir_rows = 0; }
+    if (n_dirs) { dir_rows = ((n_dirs - 1) / n_cols) + 1; } else { dir_rows = 0; }
     int fi_init_row = dir_rows * n_cols;            /* first row containing files */
     int v_lim = fi_init_row + (n_choices - n_dirs); /* build from init posit, not first dir posit */
 
@@ -220,8 +187,9 @@ void menu(FileSystemNode *cdi) {
 
     /* draw choices */
     int running = 1;
-    int d_selected = 0;
-    int f_selected = 0;
+    int d_selected = 0; /* dir to traverse to */
+    int f_selected = 0; /* file to read from */
+    int dd_selected = 0; /* parent to de-traverse to */
     while (running) {
         int fcx = 0;
         for (int i = 0; i < n_choices; i++) {
@@ -235,7 +203,6 @@ void menu(FileSystemNode *cdi) {
                 int col = (fcx % n_cols) * col_width + 2; /* same right shift */
                 mvwprintw(menu_win, row, col, "[ :%lld blocks ] %s", choices[i]->blocks, choices[i]->name);
                 fcx++;
-            /* if not SHOW_SIZES, &/or if a directory, only show the name */
             } else { mvwprintw(menu_win, row, col, "%s", choices[i]->name); }
 
             if (i == choice) { wattroff(menu_win, A_REVERSE); }
@@ -265,13 +232,17 @@ void menu(FileSystemNode *cdi) {
             case 'q':
                 choice = -1;
                 running = 0;
-                continue;
-            case 'c': /* 'cd' to that directory (if directory) */
+                break;
+            case 'c': /* 'cd' to the selected directory (if directory) */
                 d_selected = 1; /* not usefully functional atm */
                 running = 0;
                 break;
-            case 'r':
+            case 'r': /* read to the selected file */
                 f_selected = 1;
+                running = 0;
+                break;
+            case 'p': /* traverse up 1 */
+                dd_selected = 1;
                 running = 0;
                 break;
         }
@@ -312,10 +283,10 @@ end:
                 printf("failed to read file\n");
                 return;
             } else { menu(cwd); }
-        }
+        } else if (dd_selected) { if (cdi->parent != NULL) { menu(cdi->parent); } else { menu(cdi); } }
         printf("selection: %s\n", choices[choice]->name);
         if (choices[choice]->is_dir) { menu(choices[choice]); }
-    }
+    } else { return; }
 }
 
 void untraverse(FileSystemNode* dd, char* buff) {
@@ -337,109 +308,8 @@ int traverse_to(FileSystemNode* cd) {
     printf("full path: %s\n", path);
 
     if (chdir(path) == -1) { return 0; }
+    free(path);
     return 1;
-}
-
-int read_from(FileSystemNode* ff) {
-    if (ff->is_dir) {return 0; }
-    char *path = malloc(MAX_FILENAME);
-    path[0] = '\0';
-
-    untraverse(ff, path);
-
-    return view_file(path);
-}
-
-int view_file(char *path) {
-    FILE *f = fopen(path, "r");
-    if (!f) { return 0; }
-
-    int n_lines = 0;  /* count the lines */
-    int max_line = 0; /* find the longest line */
-    int cur_len = 0;  /* counter */
-    int c;
-    while ((c = fgetc(f)) != EOF) {
-        if (c == '\n') {
-            n_lines++;
-            if (cur_len > max_line) { max_line = cur_len; }
-            cur_len = 0;
-        } else {
-            cur_len++;
-        }
-    }
-    if (cur_len > 0) { n_lines++; } /* add line w.no trailing \n */
-    rewind(f);
-
-    curs_set(0);
-
-    int screen_h, screen_w;
-    getmaxyx(stdscr, screen_h, screen_w);
-
-    /* make pad atleast size of window incase file doesn't fill */
-    /* condition ? expression if true : expression if false */
-    int pad_w = (max_line > screen_w) ? max_line + 1 : screen_w;
-    WINDOW *pad = newpad(n_lines + 1, pad_w);
-    keypad(pad, TRUE);
-
-    /* read the file into the pad, line by line */
-    char line[4096];
-    int row = 0;
-    while (fgets(line, sizeof(line), f)) {
-        mvwprintw(pad, row, 0, "%s", line);
-        row++;
-    }
-    fclose(f);
-
-    /* scrolling state : which row/column is in the top-left of the viewport */
-    int pad_row = 0;
-    int pad_col = 0;
-    int view_h = screen_h - 1; /* room for status bar at the bottom */
-    int view_w = screen_w;
-
-    clear();
-    refresh();
-
-    int ch;
-    while (1) {
-        mvprintw(view_h, 0, "line %d/%d q to quit", pad_row + 1, n_lines);
-        clrtoeol();
-        refresh();
-
-        prefresh(pad, pad_row, pad_col, 0, 0, view_h - 1, view_w -1);
-
-        ch = wgetch(pad);
-        switch(ch) {
-            case KEY_DOWN: pad_row++; break;
-            case KEY_UP:   pad_row--; break;
-            case KEY_RIGHT: pad_col += 8; break;
-            case KEY_LEFT: pad_col -= 8; break;
-            case 'q': case 27: goto done;
-        }
-
-        /* clamp */
-        if (pad_row > n_lines - view_h) { pad_row = n_lines - view_h; }
-        if (pad_row < 0) { pad_row = 0; }
-        if (pad_col > pad_w - view_w) { pad_col = pad_w - view_w; }
-        if (pad_col < 0) { pad_col = 0; }
-    }
-done:
-    delwin(pad);
-    return 1;
-}
-
-void free_rfs(FileSystemNode* xd) {
-    if (xd == NULL) { return; }
-    int n = xd->n_children;
-    for (int i = 0; i < n; i++) {
-        free_rfs(xd->children[i]);
-    }
-    free_fs(xd);
-}
-
-void free_fs(FileSystemNode* fd) {
-    if (fd == NULL) { return; }
-    if (fd->n_children) { free(fd->children); }
-    free(fd);
 }
 
 void order_rfs(FileSystemNode* ld) {
@@ -469,4 +339,19 @@ void order_fs(FileSystemNode* dd) {
         }
         dd->children = tmp;
     }
+}
+
+void free_rfs(FileSystemNode* xd) {
+    if (xd == NULL) { return; }
+    int n = xd->n_children;
+    for (int i = 0; i < n; i++) {
+        free_rfs(xd->children[i]);
+    }
+    free_fs(xd);
+}
+
+void free_fs(FileSystemNode* fd) {
+    if (fd == NULL) { return; }
+    if (fd->n_children) { free(fd->children); }
+    free(fd);
 }

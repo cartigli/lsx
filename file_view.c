@@ -7,60 +7,68 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-int view_file(char *path);
+#include "fstypes.h"
 
-int main(void) {
-    char *path = "/Volumes/HomeXx/compuir/test.txt";
-    int x = view_file(path);
-    if (x == 1) {
-        printf("error viewing file\n");
-        return 1;
-    }
-    return 0;
+int read_from(FileSystemNode* ff) {
+    if (ff->is_dir) {return 0; }
+    char *path = malloc(MAX_FILENAME);
+    path[0] = '\0';
+
+    untraverse(ff, path);
+
+    free(path);
+    return view_file(path);
 }
 
 int view_file(char *path) {
-    FILE *f = fopen(path, "r");
-    if (!f) { return 1; }
+    // FILE *f = fopen(path, "r");
+    // if (!f) { return 0; }
 
-    int n_lines = 0;  /* count the lines */
-    int max_line = 0; /* find the longest line */
-    int cur_len = 0;  /* counter */
-    int c;
-    while ((c = fgetc(f)) != EOF) {
-        if (c == '\n') {
-            n_lines++;
-            if (cur_len > max_line) { max_line = cur_len; }
-            cur_len = 0;
-        } else {
-            cur_len++;
-        }
+    Buffer *b = buffer_load(path);
+    // int n_lines = 0;  /* count the lines */
+    // int max_line = 0; /* find the longest line */
+    // int cur_len = 0;  /* counter */
+    // int c;
+    // while ((c = fgetc(f)) != EOF) {
+    //     if (c == '\n') {
+    //         n_lines++;
+    //         if (cur_len > max_line) { max_line = cur_len; }
+    //         cur_len = 0;
+    //     } else { cur_len++; }
+    // }
+    // /* add line w.no trailing \n */
+    // if (cur_len > 0) { n_lines++; }
+    // rewind(f); /* reset open file */
+    int max_line = 0;
+    int n_lines = b->n_lines;
+    for (int i = 0; i < n_lines; i++) {
+        if (b->lines[i]->len > max_line) { max_line = b->lines[i].len; }
     }
-    if (cur_len > 0) { n_lines++; } /* add line w.no trailing \n */
-    rewind(f);
 
-    initscr();
-    cbreak();
-    noecho();
     curs_set(0);
 
     int screen_h, screen_w;
     getmaxyx(stdscr, screen_h, screen_w);
 
     /* make pad atleast size of window incase file doesn't fill */
-    /* condition ? expression if true : expression if false */
+    /* if condition ? expression if true : expression if false; */
     int pad_w = (max_line > screen_w) ? max_line + 1 : screen_w;
     WINDOW *pad = newpad(n_lines + 1, pad_w);
     keypad(pad, TRUE);
 
     /* read the file into the pad, line by line */
-    char line[4096];
+    // char line[4096];
+    // int row = 0;
+    // while (fgets(line, sizeof(line), f)) {
+    //     mvwprintw(pad, row, 0, "%s", line);
+    //     row++;
+    // }
+    // fclose(f);
     int row = 0;
-    while (fgets(line, sizeof(line), f)) {
-        mvwprintw(pad, row, 0, "%s", line);
+    for (int i = 0; i < n_lines; i++) {
+        mvwprintw(pad, row, 0, "%s", b->lines[i].data);
         row++;
     }
-    fclose(f);
 
     /* scrolling state : which row/column is in the top-left of the viewport */
     int pad_row = 0;
@@ -96,6 +104,5 @@ int view_file(char *path) {
     }
 done:
     delwin(pad);
-    endwin();
-    return 0;
+    return 1;
 }
