@@ -11,3 +11,5 @@ lsx-dbg
 lsx-asan
 genericMakefile
 sanitizedMakefile
+
+test.txt
