@@ -8,7 +8,7 @@
 #include <unistd.h>
 #include <regex.h>
 
-#include "fstypes.h"
+// #include "fstypes.h"
 
 typedef struct {
     char *data; /* line contents                                              */
@@ -25,7 +25,7 @@ typedef struct {
 
 typedef struct v_class {
     const char *exp; /* RegEx expression */
-    int pair;  /* color pair */
+    int pair;        /* color pair */
     regex_t regxx;
 } v_class;
 
@@ -46,7 +46,7 @@ typedef struct {  /* cached vars for the ncurses window/pad */
     int view_w;   /* view port width */
     int pad_w;    /* pad width */
     int sprint;   /* status message bool */
-    char *smsg;
+    char *smsg;   /* status message */
     int wo;       /* write out (treated as bool) */
 } RunTime;
 
@@ -110,7 +110,7 @@ int main(void) {
 
     exps = init_regex();
     if (!exps) {
-        mfree(b, exps, rt); /* mfree() checks if exps is null before trying to free it */
+        mfree(b, exps, rt);
         return 1;
     }
 
@@ -126,19 +126,10 @@ int main(void) {
         return 1;
     }
     
-    
     int exit_code = alter_file(b, exps, rt);
-    // if (exit_code == 1) {
-        // mfree(b, exps, rt);
-        // return 1;
-        // }
     endwin();
     if (exit_code == -1) {
         if (buffer_writeout(b, path)) {
-            // mfree(b, exps, rt);
-            // return 1;
-            /* instead of handling free's three different times, flag the error
-             * and continue like always, inevitably hitting mfree() */
             exit_code = 1;
         } else { printf("wrote modified buffer to disk (OK)\n"); }
     }
@@ -172,10 +163,6 @@ Expressions *init_regex(void) {
 RunTime *init_rt_vars(Buffer *b) {
     RunTime *rt = malloc(sizeof(RunTime));
     if (rt == NULL) { return NULL; }
-    /* n_lines should only be in Buffer *b for clarity & *
-     * source of truth; storing the value in two places would *
-     * almost certainly lead to bugs */
-     // rt->n_lines = b->n_lines;
      rt->max_line = 0;
     for (int i = 0; i < b->n_lines; i++) {
         if (b->lines[i].len > rt->max_line) {
@@ -237,23 +224,18 @@ int alter_file(Buffer *b, Expressions *exps, RunTime *rt) {
     refresh();
 
     int ch;
-    // int z_print = 0;
     while (1) {
-        char *z_string = "ctrl + z pressed    "; /* 16 chars */
-        /* 4 digits max : 4 digits + 13 chars = 22 ( + 2); */
-        char mbuff[44];//[24];
+        char mbuff[44];
         if (rt->sprint) {
             snprintf(mbuff, sizeof(mbuff), "%s%d:%d (esc to esc)", rt->smsg, rt->curs_row + 1, b->n_lines);
         } else { snprintf(mbuff, sizeof(mbuff), "%d:%d (esc to esc)", rt->curs_row + 1, b->n_lines); }
-        // mvprintw(rt->screen_h - 1, rt->screen_w - strlen(pmsg) - 1, pmsg,
-        //     rt->curs_row + 1, b->n_lines);
         move(rt->screen_h - 1, 0);
         clrtoeol();
         int s_posit = rt->screen_w > (int)strlen(mbuff) ? rt->screen_w - (int)strlen(mbuff) : 0;
         mvprintw(rt->screen_h - 1, s_posit, "%s", mbuff);
+        rt->sprint = 0;
 
         wnoutrefresh(stdscr); /* stage changes */
-        // refresh();
 
         pad = grow_pad(pad, b, rt->screen_w);
         if (!pad) { return 1; }
@@ -283,8 +265,8 @@ int alter_file(Buffer *b, Expressions *exps, RunTime *rt) {
         int xx = rt->pad_row + rt->view_h;
         if (xx > b->n_lines) { xx = b->n_lines; }
         for (int e = 0; e < exps->n_exps; e++) {
+            /* only scan and color what is currently viewable */
             for (int dx = ix; dx < xx; dx++) {
-            // for (int l = 0; l < b->n_lines; l++) {
                 regex_color(pad, dx, b->lines[dx].data,
                     &exps->v_classes[e].regxx, exps->v_classes[e].pair);
             }
@@ -294,14 +276,12 @@ int alter_file(Buffer *b, Expressions *exps, RunTime *rt) {
         pnoutrefresh(pad, rt->pad_row, rt->pad_col, 0, 0,
             rt->view_h - 1, rt->view_w - 1);
         doupdate();
-        // prefresh(pad, rt->pad_row, rt->pad_col, 0, 0, 
-        //     rt->view_h - 1, rt->view_w - 1);
 
-        rt->sprint = 0;
+        // rt->sprint = 0;
 
         ch = wgetch(pad);
 
-        if (ch >= 32 && ch < 127) {                          /* printable ASCII */
+        if (ch >= 32 && ch < 127) { /* printable ASCII */
             buffer_insert_char(b, rt->curs_row, rt->curs_col, (char)ch);
             rt->curs_col++;
         } else if (ch == '\n' || ch == KEY_ENTER || ch == 13 || ch == 10) {
@@ -316,25 +296,31 @@ int alter_file(Buffer *b, Expressions *exps, RunTime *rt) {
                 int prev_len = b->lines[rt->curs_row - 1].len;
                 buffer_join_lines(b, rt->curs_row - 1);
                 rt->curs_row--;
-                rt->curs_col = prev_len;                     /* land at join point */
+                rt->curs_col = prev_len; /* land at join point */
             }
         } else if (ch == KEY_LEFT) {
-            if (rt->curs_col > 0) {                          /* if the cursors not at col 0:  */
+            /* if the cursors not at col 0: */
+            if (rt->curs_col > 0) {
                 rt->curs_col--;
-            } else if (rt->curs_row > 0) {                   /* if it is, and isn't at row 0: */
+            /* if it is, and isn't at row 0: */
+            } else if (rt->curs_row > 0) {
                 rt->curs_row--;
-                rt->curs_col = b->lines[rt->curs_row].len;   /* move to EOL of previous row   */
+                /* move to EOL of previous row */
+                rt->curs_col = b->lines[rt->curs_row].len;
             }
         } else if (ch == KEY_RIGHT) {
-            if (rt->curs_col < b->lines[rt->curs_row].len) { /* if the cursors at row less than the current line's length */
+            /* if the cursors at row less than the current line's length */
+            if (rt->curs_col < b->lines[rt->curs_row].len) {
                 rt->curs_col++;
-            } else if (rt->curs_row + 1 < b->n_lines) {      /* otherwise, and isn't at the last line: */
+            /* otherwise, and isn't at the last line: */
+            } else if (rt->curs_row + 1 < b->n_lines) {
                 rt->curs_row++; 
-                rt->curs_col = 0;                            /* move to beg. of line */
+                rt->curs_col = 0; /* move to beg. of line */
             }
         } else if (ch == KEY_UP && rt->curs_row > 0) {
-            rt->curs_row--;                                  /* (below) if the cursors last col was greater    */
-            if (rt->curs_col > b->lines[rt->curs_row].len) { /* than the new line's length, move it to the EOL */
+            rt->curs_row--; /* (below) if the cursors last col was greater */
+            /* than the new line's length, move it to the EOL */
+            if (rt->curs_col > b->lines[rt->curs_row].len) { 
                 rt->curs_col = b->lines[rt->curs_row].len;
             }
         } else if (ch == KEY_DOWN && rt->curs_row + 1 < b->n_lines) {
@@ -342,19 +328,19 @@ int alter_file(Buffer *b, Expressions *exps, RunTime *rt) {
             if (rt->curs_col > b->lines[rt->curs_row].len) {
                 rt->curs_col = b->lines[rt->curs_row].len;
             }
-        } else if (ch >= 1 && ch <= 26) {                    /* ctrl + <char> cases */
-            if (ch == 15) {                                  /* ctrl + O (love for Nano) */
+        } else if (ch >= 1 && ch <= 26) {        /* ctrl + <char> cases */
+            if (ch == 15) {                      /* ctrl + O (love for Nano) */
                 rt->wo = 1;
                 goto done;
-            } else if (ch == 24) {                           /* ctrl + X */
+            } else if (ch == 24) {               /* ctrl + X */
                 goto done;
-            } else if (ch == 26) {                           /* ctrl + Z */
+            } else if (ch == 26) {               /* ctrl + Z */
                 rt->sprint = 1;
                 rt->smsg = "ctrl + z pressed ";
             }
-        } else if (ch == 27) {                               /* esc */
+        } else if (ch == 27) {                   /* esc */
             goto done;
-        } else if (ch == KEY_RESIZE) {                       /* if terminal window gets resized */
+        } else if (ch == KEY_RESIZE) {           /* if terminal window gets resized */
             getmaxyx(stdscr, rt->screen_h, rt->screen_w);
             rt->view_h = rt->screen_h - 1;
             rt->view_w = rt->screen_w;
@@ -383,18 +369,6 @@ void mfree(Buffer *b, Expressions *exps, RunTime *rt) {
     }
     if (rt != NULL) { free(rt); }
 }
-
-// void regex_color(WINDOW *pad, int row, const char *line,
-//                 const regex_t *regxx, int pair) {
-//     regmatch_t match;
-//     int pos = 0;
-//     while (regexec(regxx, line + pos, 1, &match, 0) == 0) {
-//         mvwchgat(pad, row, pos + match.rm_so,
-//             match.rm_eo - match.rm_so, A_NORMAL, pair, NULL);
-//         pos += match.rm_eo;
-//         if (match.rm_eo == match.rm_so) { break; }
-//     }
-// }
 
 void regex_color(WINDOW *pad, int row, const char *line,
                 const regex_t *regxx, int pair) {
@@ -479,7 +453,7 @@ Buffer *buffer_load(const char *path) {
         /* the line returned could be truncated if greater than 4096 *
          * checking for the EOL terminator & growing the line resolves this */
         buffer_reserve(b, b->n_lines + 1);
-        Line *l = &b->lines[b->n_lines];             /* get the last line's address ? */
+        Line *l = &b->lines[b->n_lines]; /* get the last line's address ? */
         l->data = NULL;
         l->len = 0;
         l->cap = 0;
@@ -489,12 +463,12 @@ Buffer *buffer_load(const char *path) {
         for (;;) { 
             int chunk_len = (int)strlen(chunk);
             int has_newline = (chunk_len > 0 && chunk[chunk_len - 1] == '\n');
-            if (has_newline) { chunk_len--; }        /* strip the trailing '\n' */
+            if (has_newline) { chunk_len--; } /* strip the trailing '\n' */
 
-            line_reserve(l, l->len + chunk_len + 1); /* l->len is 0, no? */
+            line_reserve(l, l->len + chunk_len + 1);
             memcpy(l->data + l->len, chunk, chunk_len);
             l->len += chunk_len;
-            l->data[l->len] = '\0';                  /* NULL terminator */
+            l->data[l->len] = '\0';           /* NULL terminator */
 
             if (has_newline) { break; }
             if (!fgets(chunk, sizeof(chunk), f)) { break; }
@@ -519,14 +493,14 @@ Buffer *buffer_load(const char *path) {
 /* insert char 'c' into line 'row' at column 'col' *
  * precondition: 0<= row < n_lines, 0 <= col <= lines[row].len */
 void buffer_insert_char(Buffer *b, int row, int col, char c) {
-    Line *l = &b->lines[row];       /* 'id' the row being modified */
-    line_reserve(l, l->len + 2);    /* + 1 for c, + 1 for \0 */
-    memmove(l->data + col + 1,      /* shift tail right */
-        l->data + col,              /* start of text to shift; posit. in line where 'c' will be inserted */
-        l->len - col + 1);          /* + 1 copies the \0 as well */
-    l->data[col] = c;               /* add the newly inserted char 'c' where there is now space */
-    l->len++;                       /* add 1 to the length of the given row */
-    b->dirty = 1;                   /* mark the changes as unsaved */
+    Line *l = &b->lines[row];    /* 'id' the row being modified */
+    line_reserve(l, l->len + 2); /* + 1 for c, + 1 for \0 */
+    memmove(l->data + col + 1,   /* shift tail right */
+        l->data + col,           /* start of text to shift; posit. in line where 'c' will be inserted */
+        l->len - col + 1);       /* + 1 copies the \0 as well */
+    l->data[col] = c;            /* add the newly inserted char 'c' where there is now space */
+    l->len++;                    /* add 1 to the length of the given row */
+    b->dirty = 1;                /* mark the changes as unsaved */
 }
 
 /* delete the char at (row, col)
@@ -555,16 +529,16 @@ void buffer_split_line(Buffer *b, int row, int col) {
     dst->len = 0;
     dst->cap = 0;
 
-    line_reserve(dst, tail_len + 1);   /* make room for the new tail-end of the original line */
+    line_reserve(dst, tail_len + 1); /* make room for the new tail-end of the original line */
     memcpy(dst->data, src->data + col, tail_len); /* copy the tail end in */
     dst->data[tail_len] = '\0';
-    dst->len = tail_len;               /* set it to its split length */
+    dst->len = tail_len;             /* set it to its split length */
 
-    src->data[col] = '\0';             /* add a null terminator at 'col' of the original line */
-    src->len = col;                    /* set it to the length of the line remaining */
+    src->data[col] = '\0';           /* add a null terminator at 'col' of the original line */
+    src->len = col;                  /* set it to the length of the line remaining */
 
-    b->n_lines++;                      /* add a line to the total count */
-    b->dirty = 1;                      /* mark the unsaved changes */
+    b->n_lines++;                    /* add a line to the total count */
+    b->dirty = 1;                    /* mark the unsaved changes */
 }
 
 void buffer_join_lines(Buffer *b, int row) {
@@ -572,13 +546,13 @@ void buffer_join_lines(Buffer *b, int row) {
     Line *l = &b->lines[row];
     Line *next = &b->lines[row + 1];
 
-    line_reserve(l, l->len + next->len + 1);             /* add row 1's length to row 0 */
-    memcpy(l->data + l->len, next->data, next->len + 1); /* + 1 for \0 */
+    line_reserve(l, l->len + next->len + 1); /* add row 1's length to row 0 */
+    memcpy(l->data + l->len, next->data, next->len + 1);
     l->len += next->len;
 
     free(next->data);
 
-    memmove(&b->lines[row + 1],                          /* shift lines above the gap down */
+    memmove(&b->lines[row + 1],             /* shift lines above the gap down */
         &b->lines[row + 2],
         (b->n_lines - row - 2) * sizeof(Line));
     b->n_lines--;
