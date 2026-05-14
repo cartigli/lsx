@@ -10,6 +10,8 @@
 
 #include "iofs.h"
 
+struct dirent *ent;
+
 void fls_recursion(FSNode* cd, char *tbuff) {
     cd->n_children = 0;
 
@@ -71,6 +73,7 @@ void fls_recursion(FSNode* cd, char *tbuff) {
 
 
 int df_type(char *dir) {
+    struct stat st;
     if (lstat(dir, &st) ==-1) { return -2; }
     if (S_ISLNK(st.st_mode)) { return -1; }
     if (S_ISREG(st.st_mode)) { return 0; }
@@ -79,6 +82,7 @@ int df_type(char *dir) {
 }
 
 long fl_blocks(char *dir) {
+    struct stat st;
     if (stat(dir, &st) == -1) { return -2; }
     return (long)st.st_blocks;
 }

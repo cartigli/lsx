@@ -8,6 +8,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "iobuff.h"
 #include "iofs.h"
 
 // typedef struct { /* for each line in the file */
