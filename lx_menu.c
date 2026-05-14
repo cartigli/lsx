@@ -449,8 +449,9 @@ int edit_de(FSNode* ff) {
 
     untraverse(ff, path);
 
+    int rt_code = ef_runn(path);
     free(path);
-    return ef_runn(path);
+    return rt_code;
 }
 
 int read_from(FSNode* ff, FVWSpecs *fvw) {
@@ -460,8 +461,9 @@ int read_from(FSNode* ff, FVWSpecs *fvw) {
 
     untraverse(ff, path);
 
+    int rt_code = view_file(path, fvw);
     free(path);
-    return view_file(path, fvw);
+    return rt_code;
 }
 
 

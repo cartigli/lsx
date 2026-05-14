@@ -211,8 +211,28 @@ int init_scr(void) {
     if (has_colors()) {
         start_color();
         /* args: (int: pair_no, fg color, bg color) */
-        init_pair(1, COLOR_RED, COLOR_BLACK);
-        init_pair(2, COLOR_RED, COLOR_BLACK);
+        short skeys_pink = 1;
+        short func_green = 2;
+        short int_purple = 3;
+        short vars_lgray = 4;
+        short comm_dgray = 5;
+        short strgs_yell = 6;
+
+        init_color(skeys_pink, 980, 600, 803); // 250 , 153 , 205 );
+        init_color(func_green, 267, 810, 431); //  68 , 207 , 110 );
+        init_color(int_purple, 659, 510, 990); // 168 , 130 , 255 );
+        init_color(vars_lgray, 702, 702, 702); // 179 , 179 , 179 );
+        init_color(comm_dgray, 400, 400, 400); // 102 , 102 , 102 );
+        init_color(strgs_yell, 882, 871, 443); // 225 , 222 , 113 );
+
+        // init_pair(1, COLOR_CYAN, COLOR_BLACK);
+        // init_pair(2, COLOR_RED, COLOR_BLACK);
+        init_pair(1, skeys_pink, COLOR_BLACK);
+        init_pair(2, func_green, COLOR_BLACK);
+        init_pair(3, int_purple, COLOR_BLACK);
+        init_pair(4, vars_lgray, COLOR_BLACK);
+        init_pair(5, comm_dgray, COLOR_BLACK);
+        init_pair(6, strgs_yell, COLOR_BLACK);
     } else {
         endwin();
         return 1;
@@ -407,16 +427,22 @@ void mfree(Buffer *b, Expressions *exps, RunTime *rt) {
 
 void regex_color(WINDOW *pad, int row, const char *line,
                 const regex_t *regxx, int pair) {
-    int pos = 0;
-    regmatch_t pmatch[3];
-    while (regexec(regxx, line + pos, 3, pmatch, 0) == 0) {
-        /* get group 2 if used else group 0 */
+    int pos = 0; /* start at position 0 for the given row (string) */
+    regmatch_t pmatch[3]; /* max no. of capture groups to be used */
+    /* regexec args: compiled exp., pointer math for posit. in string, *
+     * capture groups, array for capture group results, flags */
+    while (regexec(regxx, line + pos, 3, pmatch, 0) == 0) { /* returns 0 for match found (-1 on error) */
+        /* if the capture groups found no matches, their rm_so/eo will be -1, so check if above 0: */
         regoff_t so = pmatch[2].rm_so >= 0 ? pmatch[2].rm_so : pmatch[0].rm_so;
         regoff_t eo = pmatch[2].rm_so >= 0 ? pmatch[2].rm_eo : pmatch[0].rm_eo;
+        /* if not above 0, use first capture group, otherwise, use the third */
 
+        /* move to the posiiton of the first match (pos + start offset: so) 
+         * and apply a color pair until the end offset is met (eo - so) */
         mvwchgat(pad, row, pos + so, eo - so, A_NORMAL, pair, NULL);
 
-        pos += pmatch[0].rm_eo; /* skip the whole group */
+        pos += pmatch[0].rm_eo; /* skip entire match */
+        /* if regex matched an empty string (start offset == end offset): break out */
         if (pmatch[0].rm_eo == pmatch[0].rm_so) { break; }
     }
 }
