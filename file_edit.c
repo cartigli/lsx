@@ -211,30 +211,65 @@ int init_scr(void) {
     if (has_colors()) {
         start_color();
         /* args: (int: pair_no, fg color, bg color) */
-        short skeys_pink = 1;
-        short func_green = 2;
-        short int_purple = 3;
-        short vars_lgray = 4;
-        short comm_dgray = 5;
-        short strgs_yell = 6;
+        short keys_npres = 14;
+        short functions = 15;
+        short ints_ndecs = 16;
+        short declr_vars = 17;
+        short comments = 18;
+        short strings = 19;
+        short operands = 20;
 
-        init_color(skeys_pink, 980, 600, 803); // 250 , 153 , 205 );
-        init_color(func_green, 267, 810, 431); //  68 , 207 , 110 );
-        init_color(int_purple, 659, 510, 990); // 168 , 130 , 255 );
-        init_color(vars_lgray, 702, 702, 702); // 179 , 179 , 179 );
-        init_color(comm_dgray, 400, 400, 400); // 102 , 102 , 102 );
-        init_color(strgs_yell, 882, 871, 443); // 225 , 222 , 113 );
+        init_color(keys_npres, 
+            hex_compr(COLOR_CODES[0].r),
+            hex_compr(COLOR_CODES[0].g),
+            hex_compr(COLOR_CODES[0].b)
+        );
+        init_color(functions,
+            hex_compr(COLOR_CODES[1].r),
+            hex_compr(COLOR_CODES[1].g),
+            hex_compr(COLOR_CODES[1].b)
+        );
+        init_color(ints_ndecs,
+            hex_compr(COLOR_CODES[2].r),
+            hex_compr(COLOR_CODES[2].g),
+            hex_compr(COLOR_CODES[2].b)
+        );
+        init_color(declr_vars,
+            hex_compr(COLOR_CODES[3].r),
+            hex_compr(COLOR_CODES[3].g),
+            hex_compr(COLOR_CODES[3].b)
+        );
+        init_color(comments,
+            hex_compr(COLOR_CODES[4].r),
+            hex_compr(COLOR_CODES[4].g),
+            hex_compr(COLOR_CODES[4].b)
+        );
+        init_color(strings,
+            hex_compr(COLOR_CODES[5].r),
+            hex_compr(COLOR_CODES[5].g),
+            hex_compr(COLOR_CODES[5].b)
+        );
+        init_color(operands,
+            hex_compr(COLOR_CODES[6].r),
+            hex_compr(COLOR_CODES[6].g),
+            hex_compr(COLOR_CODES[6].b)
+        );
 
-        // init_pair(1, COLOR_CYAN, COLOR_BLACK);
-        // init_pair(2, COLOR_RED, COLOR_BLACK);
-        init_pair(1, skeys_pink, COLOR_BLACK);
-        init_pair(2, func_green, COLOR_BLACK);
-        init_pair(3, int_purple, COLOR_BLACK);
-        init_pair(4, vars_lgray, COLOR_BLACK);
-        init_pair(5, comm_dgray, COLOR_BLACK);
-        init_pair(6, strgs_yell, COLOR_BLACK);
+        // init_color(functions, 267, 810, 431); //  68 , 207 , 110 );
+        // init_color(ints_ndecs, 659, 510, 990); // 168 , 130 , 255 );
+        // init_color(declr_vars, 702, 702, 702); // 179 , 179 , 179 );
+        // init_color(comments, 400, 400, 400); // 102 , 102 , 102 );
+        // init_color(strings, 882, 871, 443); // 225 , 222 , 113 );
+
+        init_pair(1, keys_npres, COLOR_BLACK);
+        init_pair(2, functions, COLOR_BLACK);
+        init_pair(3, ints_ndecs, COLOR_BLACK);
+        init_pair(4, declr_vars, COLOR_BLACK);
+        init_pair(5, comments, COLOR_BLACK);
+        init_pair(6, strings, COLOR_BLACK);
+        init_pair(7, operands, COLOR_BLACK);
+
     } else {
-        endwin();
         return 1;
     }
     raw();                 /* catch ctrl + c as well as ctrl + o & other commons */
@@ -243,6 +278,12 @@ int init_scr(void) {
     curs_set(1);           /* initialize the cursor */
     leaveok(stdscr, TRUE); /* physical cursor doesn't need to appear on screen */
     return 0;
+}
+
+int hex_compr(const char c[]) {
+    int ccode;
+    sscanf(c, "%x", &ccode);
+    return (int)((ccode * 1000) / 255.0 );
 }
 
 int alter_file(Buffer *b, Expressions *exps, RunTime *rt) {

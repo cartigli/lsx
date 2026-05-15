@@ -84,6 +84,23 @@ void mfree(Buffer *b, Expressions *exps, RunTime *rt);
 
 /* intializes screen dimensions, attributes, & elements */
 int init_scr(void);
+int hex_compr(const char c[]);
+
+static const struct {
+    // const char color[8];
+    // int pair_no;
+    const char r[4];
+    const char g[4];
+    const char b[4];
+} COLOR_CODES[] = {
+    /* { "pink",     1, */ { "f6", "aa", "d3" }, /* keywords, types, preprocessors */
+    /* { "green",    2, */ { "23", "ad", "61" }, /* functions */
+    /* { "purple",   3, */ { "c3", "91", "ed" }, /* integers/decimals */ /* & substitutions inside strings */ /* constants & constant builtins */
+    /* { "cyan",     4, */ { "87", "ce", "eb" }, /* type-set variables */
+    /* { "ltgray",   5, */ { "b3", "b3", "b3" }, /* comments */
+    /* { "yellow",   6, */ { "fa", "f1", "87" }, /* strings, headers */
+    /* { "reddsh",   7, */ { "e6", "67", "6b" }  /* operands */
+};
 
 /* static: made once in memory and lasts only for runtime *
 * const: not mutated; raise a compiler warning if altered *
@@ -92,60 +109,58 @@ int init_scr(void);
 * things like strings, variables, or otheriwse highlighted text in *
 * the comment would show. So consider it intentional. */
 static const struct { const char *exp; int pair; } RULES[] = {
-    { "[[:space:]]{0,}[[:digit:]]*[[:space:]]{0,}",
-        3 }, /* integers (purple) (a882ff) (168, 130, 255) */
-    { "^[[:digit:]][[:digit:].]*",
-        3 }, /* decimals (purple) (see integers) */
+    /* integers */
+    { "[[:space:]]{0,}[[:digit:]]*[[:space:]]{0,}", 3 },
+    /* decimals */
+    { "^[[:digit:]][[:digit:].]*",                  3 },
+    /* an exact match to the words followed by one or more spaces followed by letters, *
+    * asteriks, or undersctores followed by a semicolon, comma, or parenthesis, or space */
+    /* type-set variables */
     { "(int|float|double|long|void|char)[[:space:]]{1,}"
-        "([[:alnum:]_*][[:alnum:]_]*)[;|,|)|[[:space:]]*]",
-        4 }, /* type-set vars (gray) (b3b3b3) (179, 179, 179) */
+        "([[:alnum:]_*][[:alnum:]_]*)[;|,|)|[[:space:]]*]", 4 },
+
+    /* functions */
     /* one or more of anything but a space followed by an open parenthesis */
-
-    { "([^[:space:]()]+)\\(",
-        2 },/* functions (green) (44cf6e) (68, 207, 110) */
+    { "([^[:space:]()]+)\\(",                       2 },
+    /* operands */
     /* list of operands (backslashes are escaping themselves) (all exact matches) */
-    { "[*/\\<>%=^+-]",
-        1 }, /* operands (pink) (fa99cd) (250, 153, 205) */
+    { "[*/\\<>%=^+-]",                            7 },
+    /* preprocessors */
     /* a hashtag followed by one or more characters including underscores */
-    { "#[a-zA-Z_]+",
-        1 }, /* *** need headers ** preprocessors  (rlly pink but <headers> are yell) (yell) (eode71) */
+    { "#[a-zA-Z_]+",                                1 },
+    /* keywords (numerical) */
     /* numeric keywords found with no leading or trailling letters or underscores that match exactly */
-    { "(^|[^a-zA-Z_])(int|float|double|unsigned"
-        "|const|long|char|NULL|void)([^a-zA-Z_]|$)",
-        1 }, /* keywords (numerical) (pink) (fa99cd) */
+    { "(^|[^a-zA-Z_])(int|float|double|unsigned|const|"
+        "long|char|NULL|void)([^a-zA-Z_]|$)",       1 },
+    /* keywords (flow control) */
     /* ditto as above - builtin keywords */
-    { "(^|[^a-zA-Z_])(return|if|else|"
-        "while|for)([^a-zA-Z_]|$)",
-        1 }, /* keywords (flow control) (pink^) */
-    /* and again; this section too small atm */
-    { "(^|[^a-zA-Z_])(typedef|struct)([^a-zA-Z_]|$)",
-        1 }, /* keywords (built-in) (pink^) */
+    { "(^|[^a-zA-Z_])(return|if|else|while|for|"
+        "typedef|struct)([^a-zA-Z_]|$)",            1 },
 
+    /* punctuation (gray) (b3b3b3)^ */
     /* punctuations to highlight (exact matches) */
-    { "[].,!?:;'[{}()]",
-        2 }, /* punctuation (gray) (b3b3b3)^ */
+    { "[].,!?:;'[{}()]",                            5 }, 
 
+    /* header specifications (yell)^ */
     /* a < following by any character + . + / except a > one or more times until a > */
-    { "<[^>][[:alnum:]./]*>",
-        6 }, /* header specifications (yell)^ */
+    { "<[^>][[:alnum:]./]*>",                       6 },
+
+    /* strings (ran after integers, comments, functions, & specials */
     /* a double quote followed by anything but a double quote until a double quote is found */
-    { "\"([^\"]*)\"",
-        6 }, /* strings (yell) (eode71) (224, 222, 113) (ran after integers, comments, functions, & specials */
-    { "%[s|i|l|p]",
-        3 }, /* substitutions in strings (purple^) (see integers) (ran after strings) */
-    
-    /* from a <*>, skip everything that's not an asterik, and everything that's not an *
+    { "\"([^\"]*)\"",                               6 },
+    /* substitutions in strings (ran after strings) */
+    { "%[s|i|l|p]",                                 3 },
+
+    /* comments (workaround p0) */
+    /* from a </-*>, skip everything that's not an asterik, and everything that's not an *
      * asterik immediately followed by backslash until a pair is found | too much for too little; 
      * the current function form can't wrap multi line expressions anyway */
-    { "/\\*[^\n]*[\\*|\\*/]",
-        5 }, /* comments (workaround p0) (dark-gray)v */
-    { "\\*[[:space:]][^\n]*\\*/",
-        5 }, /* comments (work around p1) (dark-gray)v */
+    { "/\\*[^\n]*[\\*|\\*/]",                       5 },
+    /* comments (work around p1) */
+    { "\\*[[:space:]][^\n]*\\*/",                   5 },
+    /* comments 0 */
     /* from any <//> until the end of the line */
-    /* an exact match to the words followed by one or more spaces followed by letters, *
-     * asteriks, or undersctores followed by a semicolon, comma, or parenthesis, or space */
-    { "//[^\n]*",
-        5 } /* comments 0 (dark-gray) (666666) (102, 102, 102) */
+    { "//[^\n]*",                                   5 }
 };
 
 #endif
