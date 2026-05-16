@@ -5,6 +5,7 @@
 lx
 
 reports/*
+refact/*
 scan_results/*
 scan-results/*
 lsx-dbg

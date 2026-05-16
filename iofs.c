@@ -8,11 +8,12 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "highlight.h"
 #include "iofs.h"
 
-struct dirent *ent;
 
 void fls_recursion(FSNode* cd, char *tbuff) {
+    struct dirent *ent;
     cd->n_children = 0;
 
     int ix = 0;
@@ -74,12 +75,13 @@ void fls_recursion(FSNode* cd, char *tbuff) {
 
 int df_type(char *dir) {
     struct stat st;
-    if (lstat(dir, &st) ==-1) { return -2; }
-    if (S_ISLNK(st.st_mode)) { return -1; }
-    if (S_ISREG(st.st_mode)) { return 0; }
-    if (S_ISDIR(st.st_mode)) { return 1; }
-    return -3; /* god forbid */
+    if (lstat(dir, &st) ==-1) { return -2; } /* permission denied / doesn't exist */
+    if (S_ISLNK(st.st_mode)) { return -1; }  /* symlinked file */
+    if (S_ISREG(st.st_mode)) { return 0; }   /* file */
+    if (S_ISDIR(st.st_mode)) { return 1; }   /* directory */
+    return -3; /* god forbid - unkown type */ 
 }
+
 
 long fl_blocks(char *dir) {
     struct stat st;
@@ -88,50 +90,58 @@ long fl_blocks(char *dir) {
 }
 
 
-
 void order_rfs(FSNode* cd) {
     if (cd == NULL) { return; }
-    int n = cd->n_children;
-    for (int i = 0; i < n; i++) { order_fs(cd->children[i]); }
+    for (int i = 0; i < cd->n_children; i++) { order_fs(cd->children[i]); }
     order_fs(cd);
 }
+
 
 void order_fs(FSNode* cd) {
     if (cd == NULL) { return; }
     if (cd->n_children) {
-        int ndirs = 0;
-        int n = cd->n_children;
-        FSNode** tmp = malloc(sizeof(FSNode*) * n);
-        for (int i = 0; i < n; i++) {
+        int idx = 0;
+        FSNode** tmp = malloc(sizeof(FSNode*) * cd->n_children);
+        for (int i = 0; i < cd->n_children; i++) {
             if (cd->children[i]->is_dir) {
-                tmp[ndirs] = cd->children[i];
-                ndirs++;
+                tmp[idx] = cd->children[i];
+                idx++;
             }
         }
-        for (int l = 0; l < n; l++) {
+        for (int l = 0; l < cd->n_children; l++) {
             if (!(cd->children[l]->is_dir)) {
-                tmp[ndirs] = cd->children[l];
-                ndirs++;
+                tmp[idx] = cd->children[l];
+                idx++;
             }
         }
         cd->children = tmp;
     }
 }
 
+
+void free_assist(FSNode* cd, RTSpecs *rts, FVWSpecs *fvw, char *ptbuff) {
+    if (cd) { free_rfs(cd); }
+    if (rts) { free(rts); }
+    if (fvw) { free(fvw); }
+    if (ptbuff) { free(ptbuff); }
+}
+
+
 void free_rfs(FSNode* cd) {
     if (cd == NULL) { return; }
-    int n = cd->n_children;
-    for (int i = 0; i < n; i++) {
+    for (int i = 0; i < cd->n_children; i++) {
         free_rfs(cd->children[i]);
     }
     free_fs(cd);
 }
+
 
 void free_fs(FSNode* cd) {
     if (cd == NULL) { return; }
     if (cd->n_children) { free(cd->children); }
     free(cd);
 }
+
 
 void untraverse(FSNode* cd, char* buff) {
     if (cd->parent != NULL) {
@@ -140,6 +150,7 @@ void untraverse(FSNode* cd, char* buff) {
     }
     strcat(buff, cd->name);
 }
+
 
 int traverse_to(FSNode* cd) {
     if (!cd->is_dir) { return 1; }
