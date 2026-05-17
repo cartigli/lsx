@@ -9,7 +9,8 @@
 #include <unistd.h>
 
 #include "highlight.h"
-#include "iofs.h"
+#include "menu.h"
+#include "fsio.h"
 
 
 void fls_recursion(FSNode* cd, char *tbuff) {

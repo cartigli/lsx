@@ -8,8 +8,11 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "init.h"
+#include "menu.h"
+#include "buff.h"
 #include "highlight.h"
-#include "iofs.h"
+#include "fsio.h"
 
 
 /* file system tracking & menu window display */
@@ -28,8 +31,13 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    FSNode *cwd = NULL;
+    RTSpecs *rts = NULL;
+    FVWSpecs *fvw = NULL;
+    char *ptbuff = NULL;
+
     /* make the cwd's entry */
-    FSNode* cwd = malloc(sizeof(FSNode));
+    cwd = malloc(sizeof(FSNode));
     if (cwd == NULL) { return 1; }
     if (getcwd(cwd->name, sizeof(FSNode)) == NULL) { goto cleanup; }
 
@@ -37,7 +45,7 @@ int main(int argc, char *argv[]) {
     cwd->parent = NULL;
 
     /* buffer of full path for descendendants in fls_recurs */
-    char *ptbuff = malloc(MAX_FILENAME);
+    ptbuff = malloc(MAX_FILENAME);
     if (ptbuff == NULL) {
         free_rfs(cwd);
         return 1;
@@ -46,10 +54,11 @@ int main(int argc, char *argv[]) {
     strcpy(ptbuff, cwd->name);
     strcat(ptbuff, "/");
 
-    RTSpecs *rts = malloc(sizeof(RTSpecs));
+    rts = malloc(sizeof(RTSpecs));
     if (rts == NULL) { goto cleanup; }
+    // rts->padding = (DONT_SHOW_SIZES) ? 2 : 17;
 
-    FVWSpecs *fvw = malloc(sizeof(FVWSpecs));
+    fvw = malloc(sizeof(FVWSpecs));
     if (fvw == NULL) { goto cleanup; }
 
     /* index the cwd & its subdirectories */
@@ -57,11 +66,19 @@ int main(int argc, char *argv[]) {
     /* order the results by directories first */
     order_rfs(cwd);
 
-    initscr(); /* initiate ncurses screen */
-    cbreak();  /* grab all key events (except Ctrl+C) */
-    noecho();  /* hide the cursor */
+    if (init_scr(0)) { goto cleanup; }
 
-    menu(cwd, rts, fvw);
+
+    FSNode *nxt = NULL;
+
+    while (1) {
+        nxt = menu(cwd, rts, fvw);
+        if (!nxt) { break; }
+        cwd = nxt;
+    }
+
+
+
     endwin();  /* kill the window or terminal state will be corrupted */
 cleanup:
     free_assist(cwd, rts, fvw, ptbuff);
@@ -69,52 +86,20 @@ cleanup:
 }
 
 
-RTSpecs *init_RTS(FSNode *cd, RTSpecs *rts) {
-    rts->unkn_action = 0;
-    rts->choice = 0;
-    int ch;
-
-    int xMax = getmaxx(stdscr);
-
-    int xstrlen;
-    rts->max_lenfn = 0;
-    for (int x = 0; x < cd->n_children; x++) {
-        xstrlen = strlen(cd->children[x]->name);
-        if (rts->max_lenfn < xstrlen) { rts->max_lenfn = xstrlen; }
-    }
-
-    rts->padding = (DONT_SHOW_SIZES) ? 2 : 17;
-    rts->col_width = rts->max_lenfn + rts->padding;
-    rts->n_cols = xMax / rts->col_width;
-
-    if (rts->n_cols < 1)              { rts->n_cols = 1; }
-    if (rts->n_cols > cd->n_children) { rts->n_cols = cd->n_children; }
-
-    /* calculate virtual grid of n_choices given n_dirs */
-    int dir_rows = (cd->n_dirs) ? ((cd->n_dirs - 1) / rts->n_cols) + 1 : 0;
-
-    rts->fi_init_row = dir_rows * rts->n_cols;            /* first row containing files */
-    rts->v_lim = rts->fi_init_row + (cd->n_children - cd->n_dirs); /* build from init posit, not first dir posit */
-
-    rts->cd_selected = 0;
-    rts->rf_selected = 0;
-    rts->pd_selected = 0;
-    return rts;
-}
-
-
-void menu(FSNode *cd, RTSpecs *rts, FVWSpecs *fvw) {
+FSNode *menu(FSNode *cd, RTSpecs *rts, FVWSpecs *fvw) {
     WINDOW *menu_win;
     FSNode** choices = cd->children;
 
     int ch;
-    rts = init_RTS(cd, rts);
+    rts = init_RTS(cd, rts, DONT_SHOW_SIZES);
 
     /* create menu window */
     menu_win = newwin(0, 0, 0, 0); /* fullscreen */
     keypad(menu_win, TRUE);        /* get the key strokes *from the window* */
     box(menu_win, 0, 0);           /* outline the window */
     wrefresh(menu_win);            /* refresh the window to show */
+
+    curs_set(0);
 
     // /* draw choices */
     while (1) {
@@ -186,7 +171,7 @@ void menu(FSNode *cd, RTSpecs *rts, FVWSpecs *fvw) {
                 case KEY_DOWN:  rts->v_choice += rts->n_cols;     break;
                 case KEY_UP:    rts->v_choice -= rts->n_cols;     break;
                 case KEY_RIGHT: rts->v_choice = rts->fi_init_row; break;
-                case KEY_LEFT:  rts->v_choice = cd->n_dirs - 1;  break;
+                case KEY_LEFT:  rts->v_choice = cd->n_dirs - 1;   break;
             }
         }
 
@@ -206,19 +191,21 @@ void menu(FSNode *cd, RTSpecs *rts, FVWSpecs *fvw) {
         }
     }
 end:
-    if (rts->choice == -1) { return; }
+    if (rts->choice == -1) { return NULL; }
     werase(menu_win);
     /* pressing enter without specifying c or r (rts or read) *
      * so the target type is unknown, at least to us */
     if (rts->unkn_action) {
         if (choices[rts->choice]->is_dir) {
-            menu(choices[rts->choice], rts, fvw);
+            // menu(choices[rts->choice], rts, fvw);
+            return choices[rts->choice];
         }
         else {
             if (read_from(choices[rts->choice], fvw)) {
-                return;
+                return NULL;
             } else {
-                menu(cd, rts, fvw);
+                // menu(cd, rts, fvw);
+                return cd;
             }
         }
         rts->unkn_action = 0;
@@ -226,17 +213,38 @@ end:
 
     if (rts->cd_selected) {
         rts->cd_selected = 0;
-        if (traverse_to(choices[rts->choice]))    { return; } else { menu(cd, rts, fvw); }
+        if (traverse_to(choices[rts->choice])) {
+            return NULL;
+        } else {
+            // menu(cd, rts, fvw);
+            return cd;
+        }
     } else if (rts->rf_selected) {
         rts->rf_selected = 0;
-        if (read_from(choices[rts->choice], fvw)) { return; } else { menu(cd, rts, fvw); }
+        if (read_from(choices[rts->choice], fvw)) {
+            return NULL;
+        } else {
+            // menu(cd, rts, fvw);
+            return cd;
+        }
     } else if (rts->mf_selected) {
         rts->mf_selected = 0;
-        if (edit_de(choices[rts->choice]))        { return; } else { menu(cd, rts, fvw); }
+        if (edit_de(choices[rts->choice])) {
+            return NULL;
+        } else {
+            // menu(cd, rts, fvw);
+            return cd;
+        }
     } else if (rts->pd_selected) {
         rts->pd_selected = 0;
-        if (cd->parent) { menu(cd->parent, rts, fvw); }       else { menu(cd, rts, fvw); }
+        if (cd->parent) {
+            // menu(cd->parent, rts, fvw);
+            return cd->parent;
+        } else {
+            menu(cd, rts, fvw);
+        }
     }
+    return NULL;
 }
 
 
@@ -266,14 +274,15 @@ int read_from(FSNode* ff, FVWSpecs *fvw) {
 }
 
 
-FVWSpecs *initFVWS(char *path, FVWSpecs *fvw) {
-    FILE *f = fopen(path, "r");
-    if (!f) { return NULL; }
-
+int view_file(char *path, FVWSpecs *fvw) {
     fvw->n_lines = 0;
     fvw->max_line = 0;
     int cur_len = 0; /* counter */
     int c;
+
+    FILE *f = fopen(path, "r");
+    if (!f) { return 1; }
+
     while ((c = fgetc(f)) != EOF) {
         if (c == '\n') {
             fvw->n_lines++;
@@ -286,34 +295,13 @@ FVWSpecs *initFVWS(char *path, FVWSpecs *fvw) {
 
     if (cur_len > 0) { fvw->n_lines++; } /* add line w.no trailing \n */
 
-    // rewind(f);
-    fclose(f);
+    rewind(f);
 
-    getmaxyx(stdscr, fvw->screen_h, fvw->screen_w);
-
-    /* make pad atleast size of window incase file doesn't fill */
-    /* condition ? expression if true : expression if false */
-    fvw->pad_w = (fvw->max_line > fvw->screen_w) ? fvw->max_line + 1 : fvw->screen_w;
-
-    /* scrolling state : which row/column is in the top-left of the viewport */
-    fvw->pad_row = 0;
-    fvw->pad_col = 0;
-    fvw->view_h = fvw->screen_h - 1; /* room for status bar at the bottom */
-    fvw->view_w = fvw->screen_w;
-
-    return fvw;
-}
-
-
-int view_file(char *path, FVWSpecs *fvw) {
-    fvw = initFVWS(path, fvw);
+    fvw = initFVWS(fvw);
     if (!fvw) { return 1; }
 
     WINDOW *pad = newpad(fvw->n_lines + 1, fvw->pad_w);
     keypad(pad, TRUE);
-
-    FILE *f = fopen(path, "r");
-    if (!f) { return 1; }
 
     /* read the file into the pad, line by line */
     int row = 0;
@@ -330,7 +318,7 @@ int view_file(char *path, FVWSpecs *fvw) {
 
     int ch;
     while (1) {
-        mvprintw(fvw->view_h, 0, "line %d/%d q to quit",
+        mvprintw(fvw->view_h, 0, "line %d/%d x to quit",
             fvw->pad_row + 1, fvw->n_lines);
         clrtoeol();
         refresh();
@@ -344,7 +332,7 @@ int view_file(char *path, FVWSpecs *fvw) {
             case KEY_UP:    fvw->pad_row--; break;
             case KEY_RIGHT: fvw->pad_col += 8; break;
             case KEY_LEFT:  fvw->pad_col -= 8; break;
-            case 'q':
+            case 'x':
                 goto done;
         }
 

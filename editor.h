@@ -1,25 +1,17 @@
-#ifndef IO_BUFF_H
-#define IO_BUFF_H
+#ifndef EDITOR_H
+#define EDITOR_H
+
+// #include <ncurses.h>
+#include <regex.h>
+
+#include "buff.h"
+
 
 /* file editing */
 
-/* for each line in the file */
-typedef struct {
-    char *data; /* line contents              */
-    int    len; /* strlen of the line cached  */
-    int    cap; /* single line's capacity; allocated bytes; always >= len + 1 */
-} Line;
-
-/* buffer created from file on disk; mutable source of truth */
-typedef struct {
-    Line   *lines; /* array of lines                     */
-    int   n_lines; /* lines currently in use             */
-    int cap_lines; /* capacity of lines; lines allocated */
-    int     dirty; /* unsaved changes                    */
-} Buffer;
-
 /* runtime vars */
 typedef struct {
+    WINDOW  *pad;
     int max_line; /* longest line           */
     int  pad_row; /* top left row of pad    */
     int  pad_col; /* top left col of pad    */
@@ -43,31 +35,14 @@ typedef struct {
     char *dedent; /* chars to trigger a dedent */
 } Cursor;
 
-Buffer *buffer_load(const char *path);
-
-RunTime *init_rt_vars(Buffer *b);
-
-Cursor *init_cursor(void);
-
-/* compiles and caches regex expressions */
-int compile_regex(void);
-
-/* add or expand memory for the modified buffer */
-static void line_reserve(Line *l, int need);
-static void buffer_reserve(Buffer *b, int need);
-WINDOW* grow_pad(WINDOW* pad, Buffer *b, RunTime *rt);
+// /* add or expand memory for the pad */
+void grow_pad(Buffer *b, RunTime *rt);
 
 /* runs the buffer & ncurses window; main manager */
 int alter_file(Buffer *b, RunTime *rt, Cursor *curs);
 
-/* the four main modifications: insert, delete, split, join */
-void buffer_insert_char(Buffer *b, int row, int col, char c);
-void buffer_delete_char(Buffer *b, int row, int col);
-void buffer_split_line(Buffer *b, int row, int col);
-void buffer_join_lines(Buffer *b, int row);
-
 /* digest key presses */
-void action_key(WINDOW* pad, Buffer *b, RunTime *rt, Cursor *curs, int ch);
+void action_key(Buffer *b, RunTime *rt, Cursor *curs, int ch);
 
 /* repairs indent levels if corrupted */
 int repair_indent(Buffer *b, Cursor *curs, int indent);
@@ -85,11 +60,8 @@ int dedentable(Buffer *b, Cursor *curs, int ch);
 int whitespace(Buffer *b, int row);
 
 /* highlights the syntax from a set of predefined RegEx Expressions */
-void regex_color(WINDOW* pad, int row, const char *line,
+void regex_color(RunTime *rt, int row, const char *line,
     const regex_t *regxx, int code);
-
-/* writes the modified buffer to the disk (saves file) */
-int buffer_writeout(Buffer *b, const char *path);
 
 /* frees allocated memory */
 void mfree(Buffer *b, RunTime *rt, Cursor *curs);
