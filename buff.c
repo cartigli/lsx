@@ -11,18 +11,11 @@ static void buffer_reserve(Buffer *b, int need);
 
 
 Buffer *buffer_load(const char *path) {
-    FILE *f = fopen(path, "r");
-    if (!f) { return NULL; }
-    // if (!f) { // TODO: make new file if not exists
-    //     //FILE *f = fopen(path, "w")
-    //     return fabricate_buffer(path);
-    // }
-
     Buffer *b = calloc(1, sizeof(Buffer));
-    if (!b) {
-        fclose(f);
-        return NULL;
-    }
+    if (!b) { return NULL; }
+
+    FILE *f = fopen(path, "r");
+    if (!f) { return fabricate_buffer(b); }
 
     buffer_reserve(b, 32);
 
@@ -54,22 +47,33 @@ Buffer *buffer_load(const char *path) {
         b->n_lines++;
     }
 
-    /* empty file - give it one line for the cursor */
-    if (b->n_lines == 0) {
-        buffer_reserve(b, 1);
-        Line tmp_line;
-        tmp_line.data = calloc(1, 16);
-        tmp_line.len = 0;
-        tmp_line.cap = 16;
-        b->lines[0] = tmp_line;
-        b->n_lines = 1;
-    }
+    // /* empty file - give it one line for the cursor */
+    // if (b->n_lines == 0) {
+    //     buffer_reserve(b, 1);
+    //     Line tmp_line;
+    //     tmp_line.data = calloc(1, 16);
+    //     tmp_line.len = 0;
+    //     tmp_line.cap = 16;
+    //     b->lines[0] = tmp_line;
+    //     b->n_lines = 1;
+    // }
+    if (b->n_lines == 0) { return fabricate_buffer(b); }
     return b;
 }
 
 
-// Buffer *fabricate_buffer(const char *path) {
-// }
+Buffer *fabricate_buffer(Buffer *b) {
+    buffer_reserve(b, 1);
+    if (!b) { return NULL; }
+    Line line;
+    line.data = calloc(1, 16);
+    if (!line.data) { return NULL; }
+    line.len = 0;
+    line.cap = 16;
+    b->lines[0] = line;
+    b->n_lines = 1;
+    return b;
+}
 
 
 static void line_reserve(Line *l, int need) {

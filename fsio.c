@@ -8,9 +8,10 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "fsio.h"
 #include "highlight.h"
 #include "menu.h"
-#include "fsio.h"
+#include "utils.h"
 
 
 void fls_recursion(FSNode* cd, char *tbuff) {
@@ -54,8 +55,10 @@ void fls_recursion(FSNode* cd, char *tbuff) {
         } else { dtype = -1; }
 
         /* make the full path with / + the new item's name */
-        strcat(tbuff, "/");
-        strcat(tbuff, ent->d_name);
+        // strcat(tbuff, "/");
+        if (sf_strcat(tbuff, "/", sizeof(tbuff))) { return; };
+        // strcat(tbuff, ent->d_name);
+        if (sf_strcat(tbuff, ent->d_name, sizeof(tbuff))) { return; }
 
         strcpy(entry->name, ent->d_name);
         entry->is_dir = dtype;
@@ -71,6 +74,7 @@ void fls_recursion(FSNode* cd, char *tbuff) {
         cd->children[ix] = entry;
         ix++;
     }
+    order_rfs(cd);
 }
 
 
@@ -93,7 +97,9 @@ long fl_blocks(char *dir) {
 
 void order_rfs(FSNode* cd) {
     if (cd == NULL) { return; }
-    for (int i = 0; i < cd->n_children; i++) { order_fs(cd->children[i]); }
+    for (int i = 0; i < cd->n_children; i++) {
+        order_fs(cd->children[i]);
+    }
     order_fs(cd);
 }
 
@@ -120,11 +126,33 @@ void order_fs(FSNode* cd) {
 }
 
 
-void free_assist(FSNode* cd, RTSpecs *rts, FVWSpecs *fvw, char *ptbuff) {
-    if (cd) { free_rfs(cd); }
-    if (rts) { free(rts); }
-    if (fvw) { free(fvw); }
-    if (ptbuff) { free(ptbuff); }
+long max_rblocks(FSNode* cd) {
+    if (cd == NULL) { return 0; }
+    long max = 0;
+    long allmax = 0;
+    for (int i = 0; i < cd->n_children; i++) {
+        max = max_blocks(cd->children[i]);
+        if (allmax < max) { allmax = max; }
+        max = 0;
+    }
+    max = max_blocks(cd);
+    if (allmax < max) { return max; }
+    return allmax;
+}
+
+
+long max_blocks(FSNode* cd) {
+    if (cd == NULL) { return 0; }
+    long max = 0;
+    long allmax = 0;
+    if (cd->n_children) {
+        for (int i = 0; i < cd->n_children; i++) {
+            max = cd->children[i]->blocks * 512;
+            if (allmax < max) { allmax = max; }
+            max = 0;
+        }
+    }
+    return allmax;
 }
 
 
@@ -147,9 +175,11 @@ void free_fs(FSNode* cd) {
 void untraverse(FSNode* cd, char* buff) {
     if (cd->parent != NULL) {
         untraverse(cd->parent, buff);
-        strcat(buff, "/");
+        // strcat(buff, "/");
+        if (sf_strcat(buff, "/", sizeof(buff))) { return; }
     }
-    strcat(buff, cd->name);
+    // strcat(buff, cd->name);
+    if (sf_strcat(buff, cd->name, sizeof(buff))) { return; }
 }
 
 

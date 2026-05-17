@@ -14,9 +14,13 @@
 #include "fsio.h"
 
 /* (the only current) status message */
-char *z_string = "ctrl + z pressed ";
+char *ctrl_z_str = "ctrl + z pressed ";
+char *default_str = "(exit: ctrl + x)";
+char *immutable_str = "(exit: x)";
 
-int ef_runn(char *path) {
+char *default_msg;
+
+int pretty_runner(char *path, int MUTABLE) {
     int exit_code = 1; /* only set to 0 if no errors *
      * otherwise, goto cleanup, & do no collect $200 */
 
@@ -27,8 +31,9 @@ int ef_runn(char *path) {
     b = buffer_load(path);
     if (!b) { return 1; }
 
-    curs = init_cursor();
+    curs = init_cursor(MUTABLE);
     if (!curs) { goto cleanup; }
+    default_msg = (curs->Mutable) ? default_str : immutable_str;
 
     if (compile_regex()) { goto cleanup; }
 
@@ -73,16 +78,18 @@ int alter_file(Buffer *b, RunTime *rt, Cursor *curs) {
     refresh();
 
     int ch;
+    char *default_msg = "(esc to esc)";
     while (1) {
         char mbuff[44];
-        if (rt->sprint) {
-            snprintf(mbuff, sizeof(mbuff), "%s%d:%d (esc to esc)", rt->smsg, curs->row + 1, b->n_lines);
-        } else { snprintf(mbuff, sizeof(mbuff), "%d:%d (esc to esc)", curs->row + 1, b->n_lines); }
+        if (curs->sprint) {
+            snprintf(mbuff, sizeof(mbuff), "%d:%d %s", curs->row + 1, b->n_lines, curs->smsg);
+        } else { snprintf(mbuff, sizeof(mbuff), "%d:%d %s", curs->row + 1, b->n_lines, default_msg); }
+
         move(rt->screen_h - 1, 0);
         clrtoeol();
         int s_posit = rt->screen_w > (int)strlen(mbuff) ? rt->screen_w - (int)strlen(mbuff) : 0;
         mvprintw(rt->screen_h - 1, s_posit, "%s", mbuff);
-        rt->sprint = 0;
+        curs->sprint = 0;
 
         wnoutrefresh(stdscr); /* stage changes */
         if (!rt->pad) { return 1; }
@@ -127,15 +134,16 @@ int alter_file(Buffer *b, RunTime *rt, Cursor *curs) {
 
         /* key comprehension exported */
         ch = wgetch(rt->pad);
+
         action_key(b, rt, curs, ch);
-        if (rt->act_code) {
-            rt->act_code = 0;
+        if (curs->act_code) {
+            curs->act_code = 0;
             goto done;
         }
     }
 done:
     delwin(rt->pad);
-    if (rt->wo) { return -1; }
+    if (curs->wo) { return -1; }
     return 0;
 }
 
@@ -143,11 +151,20 @@ done:
 void action_key(Buffer *b, RunTime *rt, Cursor *curs, int ch) {
     int indent = 4;
 
+    if (!curs->Mutable) {
+        if (ch == 'x') {
+            curs->act_code = 1;
+            return;
+        } else if (ch >= 32 && ch < 127) {
+            return;
+        }
+    }
+
     if (ch >= 32 && ch < 127) { /* printable ASCII */
         if (dedentable(b, curs, ch)) { /* 'smart de-dent' */
             /* if the indent level is corrupted */
             if (curs->col != curs->indent_l * indent) {
-                if (repair_indent(b, curs, indent)) { rt->act_code = 1; }
+                if (repair_indent(b, curs, indent)) { curs->act_code = 1; }
             } /* and then dedent per usual */
             curs->col = curs->indent_l * indent;
             curs->indent_l--;
@@ -248,16 +265,18 @@ void action_key(Buffer *b, RunTime *rt, Cursor *curs, int ch) {
     /* ctrl key comprehension */
     } else if (ch >= 1 && ch <= 26) {
         if (ch == 15) { /* ctrl + O (love for Nano) */
-            rt->wo = 1;
-            rt->act_code = 1;
+            if (curs->Mutable) {
+                curs->wo = 1;
+                curs->act_code = 1;
+            }; // else { continue; }
         } else if (ch == 24) { /* ctrl + X */
-            rt->act_code = 1;
+            curs->act_code = 1;
         } else if (ch == 26) { /* ctrl + Z */
-            rt->sprint = 1;
-            rt->smsg = z_string;
+            curs->sprint = 1;
+            curs->smsg = ctrl_z_str;
         }
     } else if (ch == 27) { /* esc */
-        rt->act_code = 1;
+        curs->act_code = 1;
     /* if terminal window gets resized */
     } else if (ch == KEY_RESIZE) {
         getmaxyx(stdscr, rt->screen_h, rt->screen_w);

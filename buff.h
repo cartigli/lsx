@@ -19,6 +19,9 @@ typedef struct {
 /* initialize the buffer */
 Buffer *buffer_load(const char *path);
 
+/* make an empty buffer if empty/ doesn't exist file */
+Buffer *fabricate_buffer(Buffer *b);
+
 /* the four main modifications: insert, delete, split, join */
 void buffer_insert_char(Buffer *b, int row, int col, char c);
 void buffer_delete_char(Buffer *b, int row, int col);

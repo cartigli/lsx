@@ -1,9 +1,8 @@
 #ifndef MENU_H
 #define MENU_H
 
-#include "fsio.h"
 #include <ncurses.h>
-// struct FSNode;
+#include "fsio.h"
 
 /* runtime vars for ncurses window/menu */
 typedef struct {
@@ -21,32 +20,36 @@ typedef struct {
     int mf_selected;
     int cd_selected;
     int pd_selected;
-} RTSpecs;
+    int     Mutable;
+} Mstates;
 
-/* additional runtime vars for the file view window */
-typedef struct {
-    int  pad_row;
-    int  pad_col;
-    int    pad_w;
-    int screen_h;
-    int screen_w;
-    int   view_h;
-    int   view_w;
-    int  n_lines;
-    int max_line;
-} FVWSpecs;
+// /* additional runtime vars for the file view window */
+// typedef struct {
+//     int max_line;
+//     int  pad_row;
+//     int  pad_col;
+//     int screen_h;
+//     int screen_w;
+//     int   view_h;
+//     int   view_w;
+//     int    pad_w;
+//     int  n_lines;
+// } FVWSpecs;
 
 /* menu of indexed filesystem entries */
-FSNode *menu(FSNode* cd, RTSpecs *rts, FVWSpecs *fvw);
+FSNode *menu(FSNode* cd, Mstates *ms);
+
+/* allows calling ef_runn from FSNode instance */
+int pretty_edit(FSNode* ff, int Mutable);
 
 /* allows calling view file from FSNode instance */
-int read_from(FSNode* ff, FVWSpecs *fvw);
+int read_from(FSNode* ff); //, FVWSpecs *fvw);
 
 /* function to read the contents of a file (static) */
-int view_file(char *path, FVWSpecs *fvw);
+int view_file(char *path); //, FVWSpecs *fvw);
 
 /* free allocated memory */
-void free_assist(FSNode* cd, RTSpecs *rts, FVWSpecs *fvw, char *ptbuff);
+void free_assist(FSNode* cd, Mstates *ms, char *ptbuff);
 
 
 #endif

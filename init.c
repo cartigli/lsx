@@ -25,6 +25,27 @@ int compile_regex(void) {
 }
 
 
+Cursor *init_cursor(int MUTABLE) {
+    Cursor *curs = malloc(sizeof(Cursor));
+    if (curs == NULL) { return NULL; }
+    curs->row = 0;
+    curs->col = 0;
+
+    curs->dedent = "}]";
+    curs->indent = "{[";
+    curs->indent_l = 0;
+
+    curs->wo = 0;
+    curs->smsg = 0;
+
+    curs->sprint = 0;
+    curs->act_code = 0;
+
+    curs->Mutable = MUTABLE;
+    return curs;
+}
+
+
 RunTime *init_rt_vars(Buffer *b) {
     RunTime *rt = malloc(sizeof(RunTime));
     if (rt == NULL) { return NULL; }
@@ -47,29 +68,17 @@ RunTime *init_rt_vars(Buffer *b) {
     rt->view_h = rt->screen_h - 1;
     rt->view_w = rt->screen_w;
 
-    /* set writeout to FALSE (0) */
-    rt->wo = 0;
+    // /* set writeout to FALSE (0) */
+    // rt->wo = 0;
 
-    /* initialize action to 0 */
-    rt->act_code = 0;
+    // /* initialize action to 0 */
+    // rt->act_code = 0;
 
-    /* set the message & content to empty */
-    rt->sprint = 0;
-    rt->smsg = NULL;
+    // /* set the message & content to empty */
+    // rt->sprint = 0;
+    // rt->smsg = NULL;
 
     return rt;
-}
-
-
-Cursor *init_cursor(void) {
-    Cursor *curs = malloc(sizeof(Cursor));
-    if (curs == NULL) { return NULL; }
-    curs->row = 0;
-    curs->col = 0;
-    curs->dedent = "}]";
-    curs->indent = "{[";
-    curs->indent_l = 0;
-    return curs;
 }
 
 
@@ -156,54 +165,53 @@ int hex_compr(const char c[]) {
 
 
 
-RTSpecs *init_RTS(FSNode *cd, RTSpecs *rts, int SHOW_SIZES) {
-    rts->unkn_action = 0;
-    rts->choice = 0;
+Mstates *init_MS(FSNode *cd, Mstates *ms, int SHOW_SIZES) {
+    ms->unkn_action = 0;
+    ms->choice = 0;
 
     int xMax = getmaxx(stdscr);
 
     int xstrlen;
-    rts->max_lenfn = 0;
+    ms->max_lenfn = 0;
     for (int x = 0; x < cd->n_children; x++) {
         xstrlen = strlen(cd->children[x]->name);
-        if (rts->max_lenfn < xstrlen) { rts->max_lenfn = xstrlen; }
+        if (ms->max_lenfn < xstrlen) { ms->max_lenfn = xstrlen; }
     }
 
-    rts->padding = (SHOW_SIZES) ? 2 : 17;
-    // rts->padding = 0;
-    rts->col_width = rts->max_lenfn + rts->padding;
-    rts->n_cols = xMax / rts->col_width;
+    ms->padding = (SHOW_SIZES) ? 2 : 17;
+    ms->col_width = ms->max_lenfn + ms->padding;
+    ms->n_cols = xMax / ms->col_width;
 
-    if (rts->n_cols < 1)              { rts->n_cols = 1; }
-    if (rts->n_cols > cd->n_children) { rts->n_cols = cd->n_children; }
+    if (ms->n_cols < 1)              { ms->n_cols = 1; }
+    if (ms->n_cols > cd->n_children) { ms->n_cols = cd->n_children; }
 
     /* calculate virtual grid of n_choices given n_dirs */
-    int dir_rows = (cd->n_dirs) ? ((cd->n_dirs - 1) / rts->n_cols) + 1 : 0;
+    int dir_rows = (cd->n_dirs) ? ((cd->n_dirs - 1) / ms->n_cols) + 1 : 0;
 
-    rts->fi_init_row = dir_rows * rts->n_cols;            /* first row containing files */
-    rts->v_lim = rts->fi_init_row + (cd->n_children - cd->n_dirs); /* build from init posit, not first dir posit */
+    ms->fi_init_row = dir_rows * ms->n_cols;            /* first row containing files */
+    ms->v_lim = ms->fi_init_row + (cd->n_children - cd->n_dirs); /* build from init posit, not first dir posit */
 
-    rts->cd_selected = 0;
-    rts->rf_selected = 0;
-    rts->pd_selected = 0;
-    return rts;
+    ms->cd_selected = 0;
+    ms->rf_selected = 0;
+    ms->pd_selected = 0;
+    return ms;
 }
 
 
 
 
-FVWSpecs *initFVWS(FVWSpecs *fvw) {
-    getmaxyx(stdscr, fvw->screen_h, fvw->screen_w);
+// FVWSpecs *initFVWS(FVWSpecs *fvw) {
+//     getmaxyx(stdscr, fvw->screen_h, fvw->screen_w);
 
-    /* make pad atleast size of window incase file doesn't fill */
-    /* condition ? expression if true : expression if false */
-    fvw->pad_w = (fvw->max_line > fvw->screen_w) ? fvw->max_line + 1 : fvw->screen_w;
+//     /* make pad atleast size of window incase file doesn't fill */
+//     /* condition ? expression if true : expression if false */
+//     fvw->pad_w = (fvw->max_line > fvw->screen_w) ? fvw->max_line + 1 : fvw->screen_w;
 
-    /* scrolling state : which row/column is in the top-left of the viewport */
-    fvw->pad_row = 0;
-    fvw->pad_col = 0;
-    fvw->view_h = fvw->screen_h - 1; /* room for status bar at the bottom */
-    fvw->view_w = fvw->screen_w;
+//     /* scrolling state : which row/column is in the top-left of the viewport */
+//     fvw->pad_row = 0;
+//     fvw->pad_col = 0;
+//     fvw->view_h = fvw->screen_h - 1; /* room for status bar at the bottom */
+//     fvw->view_w = fvw->screen_w;
 
-    return fvw;
-}
+//     return fvw;
+// }

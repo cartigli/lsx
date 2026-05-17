@@ -8,7 +8,7 @@
 
 RunTime *init_rt_vars(Buffer *b);
 
-Cursor *init_cursor(void);
+Cursor *init_cursor(int MUTABLE);
 
 /* intializes screen dimensions, attributes, & elements */
 int init_scr(int curs_vis);
@@ -18,8 +18,8 @@ int compile_regex(void);
 
 int hex_compr(const char c[]);
 
-RTSpecs *init_RTS(FSNode *cd, RTSpecs *rts, int SHOW_SIZES);
-FVWSpecs *initFVWS(FVWSpecs *fvw);
+Mstates *init_MS(FSNode *cd, Mstates *ms, int SHOW_SIZES);
+// FVWSpecs *initFVWS(FVWSpecs *fvw);
 
 
 #endif

@@ -20,10 +20,10 @@ typedef struct {
     int   view_h; /* view port height       */
     int   view_w; /* view port width        */
     int    pad_w; /* pad width              */
-    int       wo; /* write out (bool)       */
-    int act_code; /* action key result key  */
-    int   sprint; /* status message bool    */
-    char   *smsg; /* status message         */
+    // int       wo; /* write out (bool)       */
+    // int act_code; /* action key result key  */
+    // int   sprint; /* status message bool    */
+    // char   *smsg; /* status message         */
 } RunTime;
 
 /* cursor stats & specs */
@@ -33,7 +33,15 @@ typedef struct {
     int indent_l; /* level of current indent */
     char *indent; /* chars to trigger an indent */
     char *dedent; /* chars to trigger a dedent */
+    int       wo; /* write out (bool)       */
+    char   *smsg; /* status message         */
+    int   sprint; /* status message bool    */
+    int act_code; /* action key result key  */
+    int  Mutable; /* editable or no */
 } Cursor;
+
+/* main editor managing function for editing files */
+int pretty_runner(char *path, int MUTABLE);
 
 // /* add or expand memory for the pad */
 void grow_pad(Buffer *b, RunTime *rt);

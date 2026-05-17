@@ -32,22 +32,15 @@ long fl_blocks(char *dir);
 void untraverse(FSNode* cd, char* buff);
 int traverse_to(FSNode* cd);
 
-// /* allows calling view file from FSNode instance */
-// int read_from(FSNode* ff, FVWSpecs *fvw);
-// /* function to read the contents of a file (static) */
-// int view_file(char *path, FVWSpecs *fvw);
-
-/* allows calling ef_runn from FSNode instance */
-int edit_de(FSNode* ff);
-/* main editor managing function for editing files */
-int ef_runn(char *path);
-
 /* orders dirs before files (recursively) */
 void order_rfs(FSNode* cd);
 void order_fs(FSNode*  cd);
 
+/* find the largest recorded block size */
+long max_rblocks(FSNode* cd);
+long max_blocks(FSNode* cd);
+
 /* free allocated memory */
-// void free_assist(FSNode* cd, RTSpecs *rts, FVWSpecs *fvw, char *ptbuff);
 void free_rfs(FSNode*  cd);
 void free_fs(FSNode*   cd);
 
