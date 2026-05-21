@@ -6,21 +6,23 @@
 
 /* so you can use: COLOR_CODES[PINK] *
  * to get the hex code for pink */
+
 enum COLORS {
-    PINK = 1,
-    GREEN = 2,
+    PINK   = 1,
+    GREEN  = 2,
     PURPLE = 3,
-    CYAN = 4,
+    CYAN   = 4,
     LTGRAY = 5,
     YELLOW = 6,
     REDDSH = 7,
-    TEAL = 8
+    TEAL   = 8
 };
 
 
 /* enforce the order of expressions *
  * comprehended by the regex engine */
-typedef enum {
+
+ typedef enum {
     NUMERICALS,  /* 1, 23 */
     VARIABLES,   /* int i; */
     FUNCTIONS,   /* main() */
@@ -43,6 +45,7 @@ typedef struct {
     int           compiled; /* bool for a valid compile */
 } SyntaxDemands;
 
+/* one colors's three RGB hex color code values */
 
 typedef struct {
     const char r[4];
@@ -56,6 +59,14 @@ extern const ColorCode COLOR_CODES[];
 extern SyntaxDemands DEMANDS[];
 
 extern const unsigned int N_DEMANDS;
+
+int load_colors(void);
+
+int hex_compr(const char hex[]);
+
+int compile_regex(void);
+
+void free_reg(void);
 
 
 #endif

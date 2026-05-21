@@ -1,56 +1,24 @@
 #ifndef EDITOR_H
 #define EDITOR_H
 
-// #include <ncurses.h>
+#include <ncurses.h>
 #include <regex.h>
 
 #include "buff.h"
+#include "types.h"
 
 
-/* file editing */
+/* handles message printing & clearing based on frames */
+void stt_handler(WINDOW *s, const char *msg);
 
-/* runtime vars */
-typedef struct {
-    WINDOW  *pad;
-    int max_line; /* longest line           */
-    int  pad_row; /* top left row of pad    */
-    int  pad_col; /* top left col of pad    */
-    int screen_h; /* terminal screen height */
-    int screen_w; /* terminal screen width  */
-    int   view_h; /* view port height       */
-    int   view_w; /* view port width        */
-    int    pad_w; /* pad width              */
-    // int       wo; /* write out (bool)       */
-    // int act_code; /* action key result key  */
-    // int   sprint; /* status message bool    */
-    // char   *smsg; /* status message         */
-} RunTime;
-
-/* cursor stats & specs */
-typedef struct {
-    int      row; /* cursor row */
-    int      col; /* cursor column */
-    int indent_l; /* level of current indent */
-    char *indent; /* chars to trigger an indent */
-    char *dedent; /* chars to trigger a dedent */
-    int       wo; /* write out (bool)       */
-    char   *smsg; /* status message         */
-    int   sprint; /* status message bool    */
-    int act_code; /* action key result key  */
-    int  Mutable; /* editable or no */
-} Cursor;
-
-/* main editor managing function for editing files */
-int pretty_runner(char *path, int MUTABLE);
-
-// /* add or expand memory for the pad */
+/* add or expand memory for the pad */
 void grow_pad(Buffer *b, RunTime *rt);
 
 /* runs the buffer & ncurses window; main manager */
-int alter_file(Buffer *b, RunTime *rt, Cursor *curs);
+int alter_file(Buffer *b, RunTime *rt, Cursor *curs, int MUTABLE);
 
 /* digest key presses */
-void action_key(Buffer *b, RunTime *rt, Cursor *curs, int ch);
+void action_key(Buffer *b, RunTime *rt, Cursor *curs, int ch, int MUTABLE);
 
 /* repairs indent levels if corrupted */
 int repair_indent(Buffer *b, Cursor *curs, int indent);
@@ -69,9 +37,7 @@ int whitespace(Buffer *b, int row);
 
 /* highlights the syntax from a set of predefined RegEx Expressions */
 void regex_color(RunTime *rt, int row, const char *line,
-    const regex_t *regxx, int code);
+            const regex_t *regxx, int code);
 
-/* frees allocated memory */
-void mfree(Buffer *b, RunTime *rt, Cursor *curs);
 
 #endif

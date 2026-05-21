@@ -1,9 +1,8 @@
 CC     = gcc
 CFLAGS = -Wall -Wextra -std=c11 -g
-linux: CFLAGS += -D_GNU_SOURCE
 LNKLIB = -lncurses
 TARGET = lx
-OBJS   = menu.o editor.o fsio.o highlight.o buff.o init.o utils.o
+OBJS   = main.o menu.o editor.o fsio.o highlight.o buff.o utils.o error.o config.o types.o
 
 OSX := $(shell uname -s)
 ifeq ($(OSX),Linux)
@@ -17,16 +16,20 @@ $(TARGET): $(OBJS)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 buff.o:      buff.h
-editor.o:    editor.h init.h editor.h highlight.h fsio.h buff.h
-fsio.o:      fsio.h menu.h highlight.h utils.h
+config.o:    config.h error.h fsio.h types.h
+editor.o:    editor.h editor.h highlight.h fsio.h buff.h error.h types.h
+error.o:     error.h types.h
+fsio.o:      fsio.h menu.h highlight.h utils.h error.h types.h
 highlight.o: highlight.h
-init.o:      init.h highlight.h buff.h editor.h menu.h fsio.h
-menu.o:      menu.h buff.h init.h fsio.h highlight.h fsio.h
-utils.o:     utils.h
+menu.o:      menu.h buff.h fsio.h highlight.h fsio.h editor.h error.h types.h
+main.o:      main.h highlight.h editor.h menu.h fsio.h utils.h error.h config.h
+type.o:      types.h
+utils.o:     utils.h error.h
 
-linux: $(TARGET)
+linux: clean
+	@$(MAKE) --no-print-directory $(TARGET)
 
 clean:
-	rm -f $(OBJS) $(TARGET)
+	@rm -f $(OBJS) $(TARGET)
 
-.PHONY: clean
+.PHONY: clean linux

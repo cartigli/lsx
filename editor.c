@@ -8,63 +8,41 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "init.h"
 #include "editor.h"
+#include "error.h"
 #include "highlight.h"
-#include "fsio.h"
 
-/* (the only current) status message */
-char *ctrl_z_str = "ctrl + z pressed ";
+
+char *ctrl_z_str = "ctrl + z pressed"; /* 16 chars + 4 digits + 4 digits + : 1 digit = 25 */
 char *default_str = "(exit: ctrl + x)";
 char *immutable_str = "(exit: x)";
 
-char *default_msg;
-
-int pretty_runner(char *path, int MUTABLE) {
-    int exit_code = 1; /* only set to 0 if no errors *
-     * otherwise, goto cleanup, & do no collect $200 */
-
-    Buffer *b = NULL;
-    RunTime *rt = NULL;
-    Cursor *curs = NULL;
-
-    b = buffer_load(path);
-    if (!b) { return 1; }
-
-    curs = init_cursor(MUTABLE);
-    if (!curs) { goto cleanup; }
-    default_msg = (curs->Mutable) ? default_str : immutable_str;
-
-    if (compile_regex()) { goto cleanup; }
-
-    curs_set(1);
-
-    rt = init_rt_vars(b);
-    if (rt == NULL) {
-        endwin();
-        goto cleanup;
+void stt_handler(WINDOW *w, const char *msg) {
+    if (!msg) {
+        print_err(edit_src, "NULL *msg passed to stt_handler", 2);
+        return;
     }
 
-    int edit_code = alter_file(b, rt, curs);
-    endwin();
+    int x, y;
+    getmaxyx(w, y, x);
+    int row = y - STATUS_RROWS;
+    int clr_col = MAX_STTM_LEN;
+    int str_col = x > (int)strlen(msg) ? x - strlen(msg) : 1;
 
-    if (edit_code == -1) {
-        if (buffer_writeout(b, path)) { goto cleanup; }
-        printf("wrote out modified buffer (OK)\n");
-    }
-    exit_code = 0;
-
-cleanup:
-    mfree(b, rt, curs);
-    return exit_code;
+    wmove(w, row, clr_col);
+    wclrtoeol(w);
+    mvwprintw(w, row, str_col, "%s", msg);
 }
 
 
-int alter_file(Buffer *b, RunTime *rt, Cursor *curs) {
+int alter_file(Buffer *b, RunTime *rt, Cursor *curs, int mutable) {
     /* make pad atleast size of window incase file doesn't fill *
      * if condition ? expression if true : expression if false; */
     rt->pad = newpad(b->n_lines + 1, rt->pad_w);
-    if (rt->pad == NULL) { return 1; }
+    if (rt->pad == NULL) {
+        print_err(edit_src, "failed to initiate new pad for alter file", 5);
+        return 1;
+    }
     keypad(rt->pad, TRUE);
 
     /* read the buffer into the pad, line by line */
@@ -78,21 +56,33 @@ int alter_file(Buffer *b, RunTime *rt, Cursor *curs) {
     refresh();
 
     int ch;
-    char *default_msg = "(esc to esc)";
-    while (1) {
-        char mbuff[44];
-        if (curs->sprint) {
-            snprintf(mbuff, sizeof(mbuff), "%d:%d %s", curs->row + 1, b->n_lines, curs->smsg);
-        } else { snprintf(mbuff, sizeof(mbuff), "%d:%d %s", curs->row + 1, b->n_lines, default_msg); }
+    char *default_msg = (mutable) ? default_str : immutable_str;
 
-        move(rt->screen_h - 1, 0);
-        clrtoeol();
-        int s_posit = rt->screen_w > (int)strlen(mbuff) ? rt->screen_w - (int)strlen(mbuff) : 0;
-        mvprintw(rt->screen_h - 1, s_posit, "%s", mbuff);
+    while (1) {
+        char mbuff[MAX_STTM_LEN];
+        if (curs->sprint) {
+            snprintf(mbuff, sizeof(mbuff), "%d:%d %s",
+                    curs->row + 1, b->n_lines, curs->smsg);
+        } else {
+            snprintf(mbuff, sizeof(mbuff), "%d:%d %s",
+                    curs->row + 1, b->n_lines, default_msg);
+        }
+
+        /* move to where the longest message could start */
+        move(rt->screen_h - 1, MAX_STTM_LEN);
+        clrtoeol(); /* clear it */
+        /* if the mgs is longer than the screen, print *
+         * (or clear) at screen w - msg.len else col 0 */
+        int mlen = (int)strlen(mbuff);
+        int col = rt->screen_w > mlen ? rt->screen_w - mlen : 0;
+        mvprintw(rt->screen_h - 1, col, "%s", mbuff);
         curs->sprint = 0;
 
         wnoutrefresh(stdscr); /* stage changes */
-        if (!rt->pad) { return 1; }
+        if (!rt->pad) {
+            print_err(edit_src, "unexpected NULL rt->pad inside the editor's loop", 5);
+            return 1;
+        }
         werase(rt->pad);
 
         /* reprint modified buffer, line by line */
@@ -104,22 +94,26 @@ int alter_file(Buffer *b, RunTime *rt, Cursor *curs) {
         if (curs->row < rt->pad_row) {
             rt->pad_row = curs->row;
         }
-        if (curs->row >= rt->pad_row + rt->view_h) {
-            rt->pad_row = curs->row - rt->view_h + 1;
+        if (curs->row >= rt->pad_row + rt->screen_h - STATUS_RROWS) {
+            rt->pad_row = curs->row - (rt->screen_h - STATUS_RROWS) + 1;
         }
         if (curs->col < rt->pad_col) {
             rt->pad_col = curs->col;
         }
-        if (curs->col >= rt->pad_col + rt->view_w) {
-            rt->pad_col = curs->col - rt->view_w + 1;
+        if (curs->col >= rt->pad_col + rt->screen_w) {
+            // rt->pad_col = curs->col - (rt->screen_w - STATUS_RROWS) + 1; :: :( why could I not see a difference
+            rt->pad_col = curs->col - (rt->screen_w) + 1;
         }
 
         /* highlight cached RegEx expressions matches */
         int ix = rt->pad_row;
-        int xx = rt->pad_row + rt->view_h;
+        int xx = rt->pad_row + rt->screen_h - STATUS_RROWS;
         if (xx > b->n_lines) { xx = b->n_lines; }
         for (unsigned int e = 0; e < N_DEMANDS; e++) {
-            if (!DEMANDS[e].compiled) { continue; } /* skip invalids */
+            if (!DEMANDS[e].compiled) {
+                print_err(edit_src, "skipping an uncompiled regex expression", 1);
+                continue;
+            } /* skip invalids */
             /* only scan and color what is currently viewable */
             for (int dx = ix; dx < xx; dx++) {
                 regex_color(rt, dx, b->lines[dx].data,
@@ -129,110 +123,56 @@ int alter_file(Buffer *b, RunTime *rt, Cursor *curs) {
 
         wmove(rt->pad, curs->row, curs->col);
         pnoutrefresh(rt->pad, rt->pad_row, rt->pad_col, 0, 0,
-            rt->view_h - 1, rt->view_w - 1);
+            rt->screen_h - STATUS_RROWS - 1, rt->screen_w - 1);
         doupdate();
 
-        /* key comprehension exported */
+        /* key comprehension factored */
         ch = wgetch(rt->pad);
 
-        action_key(b, rt, curs, ch);
-        if (curs->act_code) {
-            curs->act_code = 0;
-            goto done;
+        action_key(b, rt, curs, ch, mutable);
+        if (curs->action) {
+            curs->action = 0;
+            break;
         }
     }
-done:
+
     delwin(rt->pad);
-    if (curs->wo) { return -1; }
     return 0;
 }
 
 
-void action_key(Buffer *b, RunTime *rt, Cursor *curs, int ch) {
+void action_key(Buffer *b, RunTime *rt, Cursor *curs, int ch, int mutable) {
     int indent = 4;
 
-    if (!curs->Mutable) {
-        if (ch == 'x') {
-            curs->act_code = 1;
-            return;
-        } else if (ch >= 32 && ch < 127) {
-            return;
-        }
-    }
-
-    if (ch >= 32 && ch < 127) { /* printable ASCII */
-        if (dedentable(b, curs, ch)) { /* 'smart de-dent' */
-            /* if the indent level is corrupted */
-            if (curs->col != curs->indent_l * indent) {
-                if (repair_indent(b, curs, indent)) { curs->act_code = 1; }
-            } /* and then dedent per usual */
-            curs->col = curs->indent_l * indent;
-            curs->indent_l--;
-            if (curs->indent_l < 0) { curs->indent_l = 0; }
-            for (int a = 0; a < indent; a++) {
-                buffer_delete_char(b, curs->row, curs->col - 1);
-                curs->col--;
-            }
-            buffer_insert_char(b, curs->row, curs->col, (char)ch);
-            curs->col++;
-
-        } else { /* else, normal char */
-            buffer_insert_char(b, curs->row, curs->col, (char)ch);
-            curs->col++;
-        }
-
-    } else if (ch == '\n' || ch == KEY_ENTER) {
-        if (indentable(b, curs)) { /* 'smart indent' */
-            curs->indent_l++; /* increase indent */
-            buffer_split_line(b, curs->row, curs->col);
-            curs->row++;
-            curs->col = 0;
-            for (int a = 0; a < indent * curs->indent_l; a++) {
-                buffer_insert_char(b, curs->row, curs->col, (char)32);
-            }
-            curs->col += indent * curs->indent_l;
-
-        } else { /* if leaving a line comprised entirely of spaces/tabs, clear it */
-            if (whitespace(b, curs->row)) {
-                for (int i = 0; i < curs->indent_l * indent; i++) {
+    /* only process if mutable, but do it initially */
+    if (mutable) {
+        if (ch >= 32 && ch < 127) { /* printable ASCII */
+            if (dedentable(b, curs, ch)) { /* 'smart' dedent */
+                /* if the indent level is corrupted */
+                if (curs->col != curs->indent_l * indent) {
+                    if (repair_indent(b, curs, indent)) {
+                        curs->action = 1;
+                    }
+                } /* and then dedent per usual */
+                curs->col = curs->indent_l * indent;
+                curs->indent_l--;
+                if (curs->indent_l < 0) { curs->indent_l = 0; }
+                for (int a = 0; a < indent; a++) {
                     buffer_delete_char(b, curs->row, curs->col - 1);
                     curs->col--;
                 }
-            }
-            /* regular new line + matched indent level */
-            buffer_split_line(b, curs->row, curs->col);
-            curs->row++;
-            curs->col = 0;
-            if (curs->indent_l) { /* maintain current level unless otherwise indicated */
-                for (int a = 0; a < indent * curs->indent_l; a++) {
-                    buffer_insert_char(b, curs->row, curs->col, (char)32);
-                }
-                curs->col = indent * curs->indent_l;
-            }
-        }
+                buffer_insert_char(b, curs->row, curs->col, (char)ch);
+                curs->col++;
 
-    } else if (ch == KEY_BACKSPACE || ch == 127) {
-        /* if the cursor's not at column 0 */
-        if (curs->col > 0) {
-            if (dedented(b, curs) && curs->col == b->lines[curs->row].len - 1) { /* if char deleted caused a dedent: */
-                buffer_delete_char(b, curs->row, curs->col - 1);
-                for (int a = 0; a < indent; a++) { /* reapply the dedented indent */
-                    buffer_insert_char(b, curs->row, curs->col, (char)32);
-                    curs->col++;
-                }
-            } else { /* else, just delete char */
-                buffer_delete_char(b, curs->row, curs->col - 1);
-                curs->col--;
+            } else { /* else, normal char */
+                buffer_insert_char(b, curs->row, curs->col, (char)ch);
+                curs->col++;
             }
-        /* otherwise, join the current line w.the previous */
-        } else if (curs->row > 0) {
-            int prev_len = b->lines[curs->row - 1].len;
-            buffer_join_lines(b, curs->row - 1);
-            curs->row--;
-            curs->col = prev_len; /* land at join point */
         }
-    /* movement key comprehension */
-    } else if (ch == KEY_LEFT) {
+    }
+
+    /* movement key digest -- always process */
+    if (ch == KEY_LEFT) {
         /* if the cursors not at col 0: */
         if (curs->col > 0) {
             curs->col--;
@@ -262,35 +202,102 @@ void action_key(Buffer *b, RunTime *rt, Cursor *curs, int ch) {
         if (curs->col > b->lines[curs->row].len) {
             curs->col = b->lines[curs->row].len;
         }
-    /* ctrl key comprehension */
+
+    /* 'utility' key bindings */
+    } else if (ch == 27) { /* esc */
+        curs->action = 1;
+    } else if (ch == KEY_RESIZE) { /* terminal window resized */
+        getmaxyx(stdscr, rt->screen_h, rt->screen_w);
+        grow_pad(b, rt);
+        if (rt->pad == NULL) {
+            print_err(edit_src, "skipping an uncompiled rt->pad after RESIZE digest", 4);
+            return;
+        }
+        clear();
+        refresh();
+
+    /* if in an immutable state, process no other captured keys */
+    } else if (!mutable) {
+        if (ch == 'x') { curs->action = 1; }
+        return;
+
+    } else if (ch == '\n' || ch == KEY_ENTER) {
+        if (indentable(b, curs)) { /* 'smart indent' */
+            curs->indent_l++; /* increase indent */
+            buffer_split_line(b, curs->row, curs->col);
+            curs->row++;
+            curs->col = 0;
+            for (int a = 0; a < indent * curs->indent_l; a++) {
+                buffer_insert_char(b, curs->row, curs->col, (char)32);
+            }
+            curs->col += indent * curs->indent_l;
+
+        } else { /* if leaving a line comprised entirely of spaces/tabs, clear it */
+            if (whitespace(b, curs->row)) {
+                for (int i = 0; i < curs->indent_l * indent; i++) {
+                    buffer_delete_char(b, curs->row, curs->col - 1);
+                    curs->col--;
+                }
+            }
+            /* regular new line + matched indent level */
+            buffer_split_line(b, curs->row, curs->col);
+            curs->row++;
+            curs->col = 0;
+            if (curs->indent_l) {
+                /* maintain current level unless otherwise indicated */
+                for (int a = 0; a < indent * curs->indent_l; a++) {
+                    buffer_insert_char(b, curs->row, curs->col, (char)32);
+                }
+                curs->col = indent * curs->indent_l;
+            }
+        }
+
+    } else if (ch == KEY_BACKSPACE || ch == 127) {
+        /* if the cursor's not at column 0 */
+        if (curs->col > 0) {
+            /* if char deleted caused a dedent: */
+            if (b->lines[curs->row].len > 0 && dedented(b, curs) &&
+                        curs->col == b->lines[curs->row].len - 1) {
+                buffer_delete_char(b, curs->row, curs->col - 1);
+                for (int a = 0; a < indent; a++) {
+                    /* reapply the dedented indent */
+                    buffer_insert_char(b, curs->row, curs->col, (char)32);
+                    curs->col++;
+                }
+            } else { /* else, just delete char */
+                buffer_delete_char(b, curs->row, curs->col - 1);
+                curs->col--;
+            }
+        /* otherwise, join the current line w.the previous */
+        } else if (curs->row > 0) {
+            int prev_len = b->lines[curs->row - 1].len;
+            buffer_join_lines(b, curs->row - 1);
+            curs->row--;
+            curs->col = prev_len; /* land at join point */
+        }
+
+    /* ctrl key digest */
     } else if (ch >= 1 && ch <= 26) {
-        if (ch == 15) { /* ctrl + O (love for Nano) */
-            if (curs->Mutable) {
-                curs->wo = 1;
-                curs->act_code = 1;
-            }; // else { continue; }
-        } else if (ch == 24) { /* ctrl + X */
-            curs->act_code = 1;
-        } else if (ch == 26) { /* ctrl + Z */
+        if (ch == 15) { /* ctrl + o */
+            if (!mutable) {
+                print_err(edit_src, "cannot write out in an immutable state", 3);
+                return; /* do nothing */
+            }
+            curs->wo = -1;
+            curs->action = 1;
+        } else if (ch == 24) { /* ctrl + x */
+            curs->action = 1;
+        } else if (ch == 26) { /* ctrl + z */
             curs->sprint = 1;
             curs->smsg = ctrl_z_str;
         }
-    } else if (ch == 27) { /* esc */
-        curs->act_code = 1;
-    /* if terminal window gets resized */
-    } else if (ch == KEY_RESIZE) {
-        getmaxyx(stdscr, rt->screen_h, rt->screen_w);
-        grow_pad(b, rt);
-        rt->view_h = rt->screen_h - 1;
-        rt->view_w = rt->screen_w;
-        clear();
-        refresh();
     }
 }
 
 
 int repair_indent(Buffer *b, Cursor *curs, int indent) {
-    while (1) { /* if the indent level doesn't match the column */
+    while (1) {
+        /* if the indent level doesn't match the column */
         if (curs->col == curs->indent_l * indent) {
             break;
         /* repair the indent level before dedenting */
@@ -303,6 +310,7 @@ int repair_indent(Buffer *b, Cursor *curs, int indent) {
         }
     }
     if (curs->col == curs->indent_l * indent) { return 0; }
+    print_err(edit_src, "failed to repair indent indices", 3);
     return 1;
 }
 
@@ -320,6 +328,7 @@ int indentable(Buffer *b, Cursor *curs) {
 
 
 int dedented(Buffer *b, Cursor *curs) {
+    if (b->lines[curs->row].data[b->lines[curs->row].len] < 1) { return 1; }
     int ch = b->lines[curs->row].data[b->lines[curs->row].len - 1];
     for (int i = 0; i < (int)strlen(curs->dedent); i++) {
         if (ch == curs->dedent[i]) { return 1; }
@@ -331,7 +340,9 @@ int dedented(Buffer *b, Cursor *curs) {
 int dedentable(Buffer *b, Cursor *curs, int ch) {
     if (!(curs->indent_l)) { return 0; }
     if (!(b->lines[curs->row].len > 0)) { return 0; }
-    if (!whitespace(b, curs->row)) { return 0; } /* needs to be longer than 0 & contain only whitespace (new char not entered yet) */
+    if (!whitespace(b, curs->row)) { return 0; }
+    /* needs to be longer than 0 & contain only *
+     * whitespace (new char has not been entered) */
     for (int i = 0; i < (int)strlen(curs->dedent); i++) {
         if (ch == curs->dedent[i]) { return 1; }
     }
@@ -341,7 +352,8 @@ int dedentable(Buffer *b, Cursor *curs, int ch) {
 
 int whitespace(Buffer *b, int row) {
     for (int i = 0; i < b->lines[row].len; i++) {
-        if (b->lines[row].data[i] != ' ' && b->lines[row].data[i] != '\t') {
+        if (b->lines[row].data[i] != ' ' &&
+                    b->lines[row].data[i] != '\t') {
             return 0;
         }
     }
@@ -352,11 +364,11 @@ int whitespace(Buffer *b, int row) {
 void regex_color(RunTime *rt, int row, const char *line,
                 const regex_t *regxx, int code) {
     int pos = 0; /* start at position 0 for the given row (string) */
-    regmatch_t pmatch[3]; /* max no. of capture groups to be used */
-    /* regexec args: compiled exp., pointer math for posit. in string, *
+    regmatch_t pmatch[3]; /* max no. of capture groups to be used *
+     * regexec args: compiled exp., pointer math for posit. in string, *
      * capture groups, array for capture group results, flags */
-    while (regexec(regxx, line + pos, 3, pmatch, 0) == 0) { /* returns 0 for match found (-1 on error) */
-        /* if the capture groups found no matches, their rm_so/eo will be -1, so check if above 0: */
+    while (regexec(regxx, line + pos, 3, pmatch, 0) == 0) { /* returns 0 for match found (-1 on error) *
+         * if the capture groups found no matches, their rm_so/eo will be -1, so check if above 0: */
         regoff_t so = pmatch[2].rm_so >= 0 ? pmatch[2].rm_so : pmatch[0].rm_so;
         regoff_t eo = pmatch[2].rm_so >= 0 ? pmatch[2].rm_eo : pmatch[0].rm_eo;
         /* if not above 0, use first capture group, otherwise, use the third */
@@ -365,8 +377,8 @@ void regex_color(RunTime *rt, int row, const char *line,
          * and apply a color pair until the end offset is met (eo - so) */
         mvwchgat(rt->pad, row, pos + so, eo - so, A_NORMAL, code, NULL);
 
-        pos += pmatch[0].rm_eo; /* skip entire match */
-        /* if regex matched an empty string (start offset == end offset): break out */
+        pos += pmatch[0].rm_eo; /* skip entire match *
+         * if regex matched an empty string (start offset == end offset): break out */
         if (pmatch[0].rm_eo == pmatch[0].rm_so) { break; }
     }
 }
@@ -378,7 +390,9 @@ void grow_pad(Buffer *b, RunTime *rt) {
     int need_h = b->n_lines + 1;
     int need_w = rt->screen_w;
     for (int i = 0; i < b->n_lines; i++) {
-        if (b->lines[i].len + 1 > need_w) { need_w = b->lines[i].len + 1; }
+        if (b->lines[i].len + 1 > need_w) {
+            need_w = b->lines[i].len + 1;
+        }
     }
     int cur_h, cur_w;
     getmaxyx(rt->pad, cur_h, cur_w);
@@ -387,21 +401,10 @@ void grow_pad(Buffer *b, RunTime *rt) {
         int new_h = need_h > cur_h * 2 ? need_h : cur_h * 2;
         int new_w = need_w > cur_w * 2 ? need_w : cur_w * 2;
         rt->pad = newpad(new_h, new_w);
-        if (rt->pad == NULL) { return; }
+        if (rt->pad == NULL) {
+            print_err(edit_src, "unexpected NULL pad while attempting to grow it", 4);
+            return;
+        }
         keypad(rt->pad, TRUE);
     }
-}
-
-
-void mfree(Buffer *b, RunTime *rt, Cursor *curs) {
-    free_buff(b);
-
-    if (rt != NULL) { free(rt); }
-
-    for (unsigned int f = 0; f < N_DEMANDS; f++) {
-        if (DEMANDS[f].compiled) {
-            regfree(&DEMANDS[f].cmp_expression);
-        }
-    }
-    free(curs);
 }

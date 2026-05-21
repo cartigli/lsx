@@ -8,89 +8,167 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "error.h"
 #include "fsio.h"
-#include "highlight.h"
-#include "menu.h"
 #include "utils.h"
 
-
-void fls_recursion(FSNode* cd, char *tbuff) {
+/* if there is a failure inside fls_recurse, the previously allocated children or 
+ * FSNodes are leaked on return (currently). on error, it should find the current
+ * bumber of allocated children, set that as n_children, and pass it to free_rfs.
+ * this way, it does not free any unallocated children but does recursively free
+ * the allocated & completed nodes.
+ ** actually, we recursively free the entry currently being built, then set the 
+ * number of children to the currently indexed count before propogating up. That way,
+ * the next fls_recurse call only cleans up ix children from the parent node. */
+int fls_recurse(FSNode* cd, char *buff) {
     struct dirent *ent;
-    cd->n_children = 0;
-
-    int ix = 0;
-    DIR *cd_d = opendir(tbuff);
-    if (cd_d == NULL) { 
-        printf("couldn't open dir\n");
-        return;
+    DIR *dir = opendir(buff);
+    if (dir == NULL) { 
+        print_err(fsio_src, "failed to open directory while recursing", 5);
+        // closedir(dir);
+        return 1;
     }
-    while ((ent = readdir(cd_d)) != NULL) {
-        if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0) { continue; }
+
+    cd->n_children = 0;
+    while ((ent = readdir(dir)) != NULL) {
+        if (strcmp(ent->d_name, ".") == 0 ||
+                strcmp(ent->d_name, "..") == 0) {
+            continue;
+        }
         cd->n_children++;
     }
 
     /* count 'parent' str to index & truncate later */
-    int xterm_pl = strlen(tbuff);
+    int xterm_pl = strlen(buff);
 
-    cd->children = malloc(cd->n_children * sizeof(FSNode*));
+    /* if the directory is empty, ensure nothing is processed */
+    if (cd->n_children <= 0) { cd->children = NULL; }
+    else {
+        cd->children = calloc(cd->n_children, sizeof(FSNode*));
+        if (!cd->children) {
+            print_err(fsio_src, "failed to allocate memory for a directories entries' child nodes", 1);
+            closedir(dir);
+            return 1;
+        }
+    }
 
-    rewinddir(cd_d);
-    if (cd_d == NULL) { return; }
-    while ((ent = readdir(cd_d)) != NULL) {
-        if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0) { continue; }
+    int ix = 0;
+    rewinddir(dir);
+    while ((ent = readdir(dir)) != NULL) {
+        if (strcmp(ent->d_name, ".") == 0 ||
+                strcmp(ent->d_name, "..") == 0) {
+            continue;
+        }
 
-        FSNode* entry = malloc(sizeof(FSNode));
-        if (entry == NULL) { return; }
+        FSNode* entry = calloc(1, sizeof(FSNode));
+        if (entry == NULL) {
+            print_err(fsio_src, "failed to allocate memory for a FSNode instance while recursing", 4);
+            closedir(dir);
+            // free(cd->children);
+            // free(entry);
+            cd->n_children = ix;
+            // free_rfs(cd
+            return 1;
+        }
 
-        entry->parent = cd; /* point it at the parent */
+        /* point it at the parent */
+        entry->parent = cd;
 
         int dtype;
-        if (ent->d_type == DT_DIR) {
-            dtype = 1;
-            if (!(cd->n_dirs)) { cd->n_dirs = 1; }
-            else { cd->n_dirs++; }
+        if (ent->d_type == DT_DIR) { dtype = 1; }
+            // if (!(cd->n_dirs)) {
+            //     cd->n_dirs = 1;
+            // } else {
+            //     cd->n_dirs++;
+            // }
+        else if (ent->d_type == DT_REG) { dtype = 0; }
+        else {
+        //     // dtype = -1;
+            // buff[xterm_pl] = '\0';
+            free_rfs(entry);
+            cd->n_children--;
+            continue;
         }
-        else if (ent->d_type == DT_REG) {
-            dtype = 0;
-        } else { dtype = -1; }
 
-        /* make the full path with / + the new item's name */
-        // strcat(tbuff, "/");
-        if (sf_strcat(tbuff, "/", sizeof(tbuff))) { return; };
-        // strcat(tbuff, ent->d_name);
-        if (sf_strcat(tbuff, ent->d_name, sizeof(tbuff))) { return; }
+        if (sf_strcat(buff, "/", MAX_FILENAME) ||
+                sf_strcat(buff, ent->d_name, MAX_FILENAME)) {
+            print_err(fsio_src, "safe cat returned an error from concatenating a path while recursing", 4);
+            closedir(dir);
+            buff[xterm_pl] = '\0'; /* reset corrupted buffer */
+            // free(cd->children);
+            // free(entry);
+            free_rfs(entry);
+            // free(cd->children);
+            cd->n_children = ix;
+            return 1;
+        }
 
         strcpy(entry->name, ent->d_name);
         entry->is_dir = dtype;
 
         if (dtype == 0) {
-            long blocks = fl_blocks(tbuff);
+            long blocks = fl_blocks(buff);
+            if (blocks == -2) {
+                print_err(fsio_src, "failed to find blocks used for a file on disk while recursing", 2);
+                // buff[0] = '\0';
+                buff[xterm_pl] = '\0';
+                free_rfs(entry);
+                cd->n_children--;
+                continue;
+            }
             entry->blocks = blocks;
-        } else if (dtype == 1) {
-            fls_recursion(entry, tbuff);
+        } else if (dtype == 1) { /* printing an error here would be + 1 *
+            * prints for every recursion | propogate the error up instead */
+            if (fls_recurse(entry, buff)) {
+                closedir(dir);
+                // free(cd->children);
+                // free(entry);
+                free_rfs(entry);
+                cd->n_children = ix;
+                return 1;
+            }
+        }
+        /* reset buffer to parent's path */
+        buff[xterm_pl] = '\0';
+
+        if (dtype == 1) {
+            // if (!(cd->n_dirs)) {
+            //     cd->n_dirs = 1;
+            // } else {
+            cd->n_dirs++;
+            // }
         }
 
-        tbuff[xterm_pl] = '\0'; /* reset buffer to parent's path */
         cd->children[ix] = entry;
         ix++;
     }
-    order_rfs(cd);
+    if (closedir(dir) == -1) {
+        print_err(fsio_src, "failed to close directory safely while recursing", 3);
+        // free(cd->children); /* dont raise error and freak out just for this */
+        // free(cd);
+        // return 1;
+    }
+    return 0;
 }
 
 
-int df_type(char *dir) {
+int df_type(const char *path) {
     struct stat st;
-    if (lstat(dir, &st) ==-1) { return -2; } /* permission denied / doesn't exist */
-    if (S_ISLNK(st.st_mode)) { return -1; }  /* symlinked file */
-    if (S_ISREG(st.st_mode)) { return 0; }   /* file */
-    if (S_ISDIR(st.st_mode)) { return 1; }   /* directory */
+    if (lstat(path, &st) == -1) { return -2; } /* permission denied / doesn't exist */
+    if (S_ISLNK(st.st_mode))    { return -1; } /* symlinked file */
+    if (S_ISREG(st.st_mode))    { return  0; }  /* file */
+    if (S_ISDIR(st.st_mode))    { return  1; }  /* directory */
+    print_err(fsio_src, "failed to check or get the types of an entry; unkown entry type", 3);
     return -3; /* god forbid - unkown type */ 
 }
 
 
-long fl_blocks(char *dir) {
+long fl_blocks(char *path) {
     struct stat st;
-    if (stat(dir, &st) == -1) { return -2; }
+    if (stat(path, &st) == -1) {
+        print_err(fsio_src, "failed to get the disk usage of a file; unkown disk usage", 3);
+        return -2;
+    }
     return (long)st.st_blocks;
 }
 
@@ -108,7 +186,11 @@ void order_fs(FSNode* cd) {
     if (cd == NULL) { return; }
     if (cd->n_children) {
         int idx = 0;
-        FSNode** tmp = malloc(sizeof(FSNode*) * cd->n_children);
+        FSNode** tmp = calloc(1, sizeof(FSNode*) * cd->n_children);
+        if (!tmp) {
+            print_err(fsio_src, "failed to allocate memory for tempory sorting FSNode", 4);
+            return;
+        }
         for (int i = 0; i < cd->n_children; i++) {
             if (cd->children[i]->is_dir) {
                 tmp[idx] = cd->children[i];
@@ -121,23 +203,39 @@ void order_fs(FSNode* cd) {
                 idx++;
             }
         }
+        free(cd->children);
         cd->children = tmp;
     }
 }
 
 
-long max_rblocks(FSNode* cd) {
-    if (cd == NULL) { return 0; }
+int max_rblocks(FSNode* cd) {
+    if (cd == NULL) {
+        print_err(fsio_src, "unexpected NULL *cd passed to max_rblocks", 3);
+        return 0;
+    }
     long max = 0;
     long allmax = 0;
     for (int i = 0; i < cd->n_children; i++) {
         max = max_blocks(cd->children[i]);
+
         if (allmax < max) { allmax = max; }
         max = 0;
     }
     max = max_blocks(cd);
-    if (allmax < max) { return max; }
-    return allmax;
+    if (allmax < max) { allmax = max; }
+
+    if (allmax == 0) {
+        print_err(fsio_src, "failed to find any valid disk use (at all)", 3);
+        return 0;
+    }
+    int cushion = 0;
+    while (allmax != 0) {
+        allmax /= 10;
+        cushion++;
+    }
+
+    return cushion;
 }
 
 
@@ -147,7 +245,7 @@ long max_blocks(FSNode* cd) {
     long allmax = 0;
     if (cd->n_children) {
         for (int i = 0; i < cd->n_children; i++) {
-            max = cd->children[i]->blocks * 512;
+            max = cd->children[i]->blocks * ST_BLOCK_SIZE;
             if (allmax < max) { allmax = max; }
             max = 0;
         }
@@ -161,39 +259,15 @@ void free_rfs(FSNode* cd) {
     for (int i = 0; i < cd->n_children; i++) {
         free_rfs(cd->children[i]);
     }
-    free_fs(cd);
-}
-
-
-void free_fs(FSNode* cd) {
-    if (cd == NULL) { return; }
-    if (cd->n_children) { free(cd->children); }
+    free(cd->children);
     free(cd);
 }
 
 
-void untraverse(FSNode* cd, char* buff) {
+void untraverse(FSNode* cd, char buff[]) {
     if (cd->parent != NULL) {
         untraverse(cd->parent, buff);
-        // strcat(buff, "/");
-        if (sf_strcat(buff, "/", sizeof(buff))) { return; }
+        sf_strcat(buff, "/", MAX_FILENAME);
     }
-    // strcat(buff, cd->name);
-    if (sf_strcat(buff, cd->name, sizeof(buff))) { return; }
-}
-
-
-int traverse_to(FSNode* cd) {
-    if (!cd->is_dir) { return 1; }
-    char *path = malloc(MAX_FILENAME);
-    path[0] = '\0';
-
-    untraverse(cd, path);
-    printf("path: %s\n", path);
-
-    printf("full path: %s\n", path);
-
-    if (chdir(path) == -1) { return 1; }
-    free(path);
-    return 0;
+    sf_strcat(buff, cd->name, MAX_FILENAME);
 }
