@@ -12,8 +12,8 @@ int df_type(const char *dir);
 long fl_blocks(char *dir);
 
 /* build the full path from a given FSNode instance */
-// void untraverse(FSNode* cd, char* buff);
-void untraverse(FSNode* cd, char buff[]);
+// void untraverse(FSNode* cd, char buff[]);
+int untraverse(FSNode *cd, char buff[]);
 int traverse_to(FSNode* cd);
 
 /* orders dirs before files (recursively) */

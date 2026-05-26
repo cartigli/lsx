@@ -7,52 +7,33 @@
 #include "types.h"
 
 
-enum args {
-    nsl,
-    nss,
-    mtl,
-    mts,
-    ver,
-    sil,
-    ARG_COUNT
-};
+static int arg_parse(int argc, char *argv[], Config *config);
 
-
-const char *const ARGS[ARG_COUNT] = {
-    [nsl] = "hide_size",
-    [nss] = "-sz",
-    [mtl] = "immutable",
-    [mts] = "-im",
-    [ver] = "verbose",
-    [sil] = "silent",
-};
-
+static int arg_parse_path(char *argv, Config *config);
 
 int main(int argc, char *argv[]);
 
-void run(Config *config);
-
-int spinup_window(void);
+void run_win(Config *config);
 
 
 void menu_runner(Config *config);
 
-MGMT *menu_init(Config *config);
+void menu_init(MGMT *mgmt, Mstate *ms, Config *config);
 
-MGMT *new_management(void);
+void new_management(MGMT *mgmt);
 
-Mstate *new_MS(void);
+void new_MS(Mstate *ms);
+
 void populate_MS(Mstate *ms, FSNode *cd, int hide_size);
 
 
 /* main editor managing function for editing files */
-void pretty_runner(const char path[], int mutable, const char *indent_chars, const char *dedent_chars);
+void pretty_runner(Config *config, const char path[], int mutable);
 
-Cursor *initialize_cursor(const char *indent_chars, const char *dedent_chars);
-RunTime *init_rt_vars(Buffer *b);
+void initialize_cursor(Cursor *curs, Config *config);
+void init_rt_vars(RunTime *rt, Buffer *b);
 
-/* frees all allocated components + delets & erases window */
-void teardown_editor(Buffer *b, RunTime *rt, Cursor *curs);
+language detect_lang(const char path[]);
 
 
 #endif

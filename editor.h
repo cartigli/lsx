@@ -15,19 +15,16 @@ void stt_handler(WINDOW *s, const char *msg);
 void grow_pad(Buffer *b, RunTime *rt);
 
 /* runs the buffer & ncurses window; main manager */
-int alter_file(Buffer *b, RunTime *rt, Cursor *curs, int MUTABLE);
+int alter_file(Buffer *b, RunTime *rt, Cursor *curs, const char *path, int MUTABLE);
 
 /* digest key presses */
-void action_key(Buffer *b, RunTime *rt, Cursor *curs, int ch, int MUTABLE);
+void action_key(Buffer *b, RunTime *rt, Cursor *curs, int ch, const char *path, int MUTABLE);
 
 /* repairs indent levels if corrupted */
-int repair_indent(Buffer *b, Cursor *curs, int indent);
+int repair_indent(Buffer *b, Cursor *curs);
 
 /* checks character entered for an indent */
 int indentable(Buffer *b, Cursor *curs);
-
-/* checks if character deleted caused a dedent */
-int dedented(Buffer *b, Cursor *curs);
 
 /* checks character entered for a dedent */
 int dedentable(Buffer *b, Cursor *curs, int ch);

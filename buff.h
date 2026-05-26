@@ -3,17 +3,18 @@
 
 /* for each line in the file */
 typedef struct {
-    char *data; /* line contents              */
-    int    len; /* strlen of the line cached  */
-    int    cap; /* single line's capacity; allocated bytes; always >= len + 1 */
+    char *data; /* line content */
+    int    len; /* cached strlen of the line */
+    int    cap; /* line's capacity; allocated bytes; always >= len + 1 */
+    // int hlstate; /* computed regex or not */
 } Line;
 
 /* buffer created from file on disk; mutable source of truth */
 typedef struct {
-    Line   *lines; /* array of lines                     */
-    int   n_lines; /* lines currently in use             */
-    int cap_lines; /* capacity of lines; lines allocated */
-    int     dirty; /* unsaved changes                    */
+    Line   *lines; /* array of lines                   */
+    int   n_lines; /* lines currently in use           */
+    int cap_lines; /* no. of lines currently allocated */
+    int     dirty; /* unsaved changes (bool)           */
 } Buffer;
 
 /* initialize the buffer */
@@ -27,6 +28,8 @@ void buffer_insert_char(Buffer *b, int row, int col, char c);
 void buffer_delete_char(Buffer *b, int row, int col);
 void buffer_split_line(Buffer *b, int row, int col);
 void buffer_join_lines(Buffer *b, int row);
+
+void buffer_duplicate_line(Buffer *b, int row);
 
 /* writes the modified buffer to the disk (saves file) */
 int buffer_writeout(Buffer *b, const char *path);

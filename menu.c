@@ -16,9 +16,9 @@
 
 
 void menu(MGMT *mgmt) {
-    FSNode *cd = (mgmt->cd) ? mgmt->cd : mgmt->root;
+    FSNode *cd = mgmt->cd;
     Mstate *ms = mgmt->ms;
-    
+
     FSNode** choices = cd->children;
     int ch;
 
@@ -60,7 +60,7 @@ void menu(MGMT *mgmt) {
                 int row = (fcx / ms->n_cols) + 4;
                 /* same right shift */
                 int col = (fcx % ms->n_cols) * ms->col_width + 2;
-                if (mgmt->hide_size) {
+                if (mgmt->config->hide_size) {
                     mvwprintw(ms->main, row, col, "%s", choices[i]->name);
                 } else {
                     mvwprintw(ms->main, row, col,
@@ -94,7 +94,7 @@ void menu(MGMT *mgmt) {
             ms->v_choice = ms->choice;
         }
         else {
-            ms->v_choice = ms->fi_init_row +
+            ms->v_choice = ms->ff_row +
                     (ms->choice - cd->n_dirs);
         }
 
@@ -133,7 +133,7 @@ void menu(MGMT *mgmt) {
                 }
             case 'e': /* edit the selected file */
                 /* if not in an mutable state, do nothing (& show warning) */
-                if (!(mgmt->mutable)) {
+                if (!(mgmt->config->mutable)) {
                     mgmt->stt_msg = "immutable";
                     mgmt->frames = 2;
                     break;
@@ -155,11 +155,11 @@ void menu(MGMT *mgmt) {
         /* if landed in empty dir slot of virtual grid: *
          * if virtual choice is greater than the no. of *
          * directories and less then the first file row */
-        if (ms->v_choice >= cd->n_dirs && ms->v_choice < ms->fi_init_row) {
+        if (ms->v_choice >= cd->n_dirs && ms->v_choice < ms->ff_row) {
             switch(ch) {
                 case KEY_DOWN:  ms->v_choice += ms->n_cols;      break;
                 case KEY_UP:    ms->v_choice -= ms->n_cols;      break;
-                case KEY_RIGHT: ms->v_choice  = ms->fi_init_row; break;
+                case KEY_RIGHT: ms->v_choice  = ms->ff_row; break;
                 case KEY_LEFT:  ms->v_choice  = cd->n_dirs - 1;  break;
             }
         }
@@ -177,7 +177,7 @@ void menu(MGMT *mgmt) {
             ms->choice = ms->v_choice;
         } else { 
             ms->choice = cd->n_dirs + 
-            (ms->v_choice - ms->fi_init_row);
+            (ms->v_choice - ms->ff_row);
         }
     }
 

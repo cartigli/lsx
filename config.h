@@ -10,14 +10,13 @@ typedef enum {
     verbosity_df,
     indent_chars_df,
     dedent_chars_df,
+    indent_len_df,
     DF_COUNT
 } defaults;
 
-extern const char *DEFAULTS[DF_COUNT]; // = {
+extern const char *DEFAULTS[DF_COUNT];
 
-Config *initialize_config(void);
-
-Config *load_config(const char *path);
+void initialize_config(Config *config);
 
 
 #endif

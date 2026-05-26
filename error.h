@@ -100,6 +100,8 @@ void clockk(char *buff, size_t m);
 
 void print_err(err_src src, const char *const subject, int lvl);
 
+void print_inf(err_src src, const char *const subject);
+
 void precurse(int lvl, char buff[]);
 
 

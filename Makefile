@@ -1,8 +1,8 @@
 CC     = gcc
-CFLAGS = -Wall -Wextra -std=c11 -g
+CFLAGS = -Wall -Wextra -std=c11 -g -Icolor -I.
 LNKLIB = -lncurses
 TARGET = lx
-OBJS   = main.o menu.o editor.o fsio.o highlight.o buff.o utils.o error.o config.o types.o
+OBJS   = main.o menu.o editor.o fsio.o highlight.o buff.o utils.o error.o config.o color/c_color.o color/py_color.o color/blank.o
 
 OSX := $(shell uname -s)
 ifeq ($(OSX),Linux)
@@ -16,14 +16,17 @@ $(TARGET): $(OBJS)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 buff.o:      buff.h
+color/blank.o:     color/blank.h types.h
+color/c_color.o:   color/c_color.h types.h
 config.o:    config.h error.h fsio.h types.h
 editor.o:    editor.h editor.h highlight.h fsio.h buff.h error.h types.h
 error.o:     error.h types.h
 fsio.o:      fsio.h menu.h highlight.h utils.h error.h types.h
-highlight.o: highlight.h
+highlight.o: highlight.h types.h color/c_color.h color/py_color.h color/blank.h
 menu.o:      menu.h buff.h fsio.h highlight.h fsio.h editor.h error.h types.h
 main.o:      main.h highlight.h editor.h menu.h fsio.h utils.h error.h config.h
-type.o:      types.h
+# type.o:      types.h
+color/py_color.o:  color/py_color.h types.h
 utils.o:     utils.h error.h
 
 linux: clean

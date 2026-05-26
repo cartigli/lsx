@@ -3,6 +3,7 @@
 #include "error.h"
 #include "utils.h"
 
+
 int sf_strcat(char *a, const char *o, int bufflen) {
     if (!a || !o) {
         print_err(util_src, "unexpected NULL buffer[s] passed to safe strcat", 3);
@@ -59,68 +60,5 @@ void usage(void) {
     "\n"
     "max args: [ 4 + a path ]\n"
     "ex: lx -ns -ne verbose /path/to/dir (or file)\n";
-    fprintf(stderr, "%s", use);
+    fprintf(stdout, "%s", use);
 }
-
-// typedef struct {
-//     char indent_chars[32];
-//     char dedent_chars[32];
-//     int mutable;
-//     int hide_size;
-//     int verbosity;
-// } BaseConfig;
-
-
-// BaseConfig *initialize_config(void) {
-//     BaseConfig *bs = NULL;
-//     bs = calloc(1, sizeof(BaseConfig));
-//     if (!bs) {
-//         print_err(util_Src, "failed to allocate memory for the BaseConfig", 4);
-//         return NULL;
-//     }
-
-//     bs->indent_chars = NULL;
-//     bs->dedent_chars = NULL;
-
-//     bs->mutable = 0;
-//     bs->hide_size = 0;
-//     bs->verbosity = 0;
-
-//     return bs;
-// }
-
-
-// // void load_base_config(Config *config, const char *path) {
-// BaseConfig *load_config(const char *path, BaseConfig bs) {
-//     FILE *f = fopen(path);
-//     if (!f) {
-//         print_err(util_src, "failed to open config file", 4);
-//         return;
-//     }
-
-//     BaseConfig *bs;
-//     bs = initialize_config();
-//     if (!bs) { return NULL; }
-
-//     char line[256];
-//     while (fgets(line), sizeof(line)) {
-//         /* skip empty or commented lines */
-//         if (line[0] == '#' || line[0] == '\n') { continue; }
-
-//         char key[32], val[32];
-//         /* read up to 31 chars into key until a '=', then read *
-//          * up to 31 chars into val until a new line char is found */
-//         if (sscanf(line, "%31[^=]=%31[^\n]", key, val) == 2) {
-//             if (strcmp(key, "indent_chars") == 0) {
-//                 bs->indent_chars = val;
-//             } else if (strcmp(key, "dedent_chars") == 0) {
-//                 bs->dedent_chars = val;
-//             } else if (strcmp(key, "mutable") == 0) {
-//                 bs->mutable = val;
-//             } else if (strcmp(key, "hide_size") == 0) {
-//                 bs->hide_size = val;
-//             } else if (strcmp(keu, "verbosity") == 0) {
-//                 bs->verbosity = val;
-//             }
-//         }
-//     }

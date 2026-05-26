@@ -1,0 +1,5 @@
+ 16:16:39 [34mDEBUG [0m[main.c/.h] path passed as arg OK 
+ 16:16:39 [34mDEBUG [0m[main.c/.h] args parsed; running config 
+ 16:16:39 [34mDEBUG [0m[main.c/.h] mode: EDIT; running editor 
+ 16:16:39 [34mDEBUG [0m[editor.c/.h] skipping an uncompiled regex expression 
+ 16:16:40 [34mDEBUG [0m[editor.c/.h] skipping an uncompiled regex expression 

@@ -130,6 +130,19 @@ void print_err(err_src src, const char *const subject, int lvl) {
 }
 
 
+void print_inf(err_src src, const char *const subject) {
+    if (src >= SRC_COUNT || src < 0) { return; }
+
+    char err_msg[MAX_ERR_LEN];
+    char buff[32];
+
+    clockk(buff, 16);
+    precurse(1, buff);
+    sprintf(err_msg, "[%s] %s \n", ERR_SRC[src], subject ? subject : "");
+    fprintf(stderr, "%s", err_msg);
+}
+
+
 void precurse(int lvl, char buff[]) {
     fprintf(stderr, " %s ", buff); /* could use ANSI_ESC[lvl], no? */
     switch(lvl) { /* assumes the normal terminal is back *

@@ -1,4 +1,4 @@
-# lsx
+# lsx -- ls+
 
 ## Introduction
 Interesting stuff, fun info, how it works, why I made it.
