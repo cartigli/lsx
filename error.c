@@ -137,7 +137,7 @@ void print_inf(err_src src, const char *const subject) {
     char buff[32];
 
     clockk(buff, 16);
-    precurse(1, buff);
+    precurse(5, buff);
     sprintf(err_msg, "[%s] %s \n", ERR_SRC[src], subject ? subject : "");
     fprintf(stderr, "%s", err_msg);
 }

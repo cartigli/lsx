@@ -16,7 +16,7 @@ extern int GLOBAL_INDENT_LEN;
 
 int load_colors(void);
 
-static inline int hex_compr(const char hex[]);
+// static inline int hex_compr(const char hex[]);
 
 int compile_regex(language lang);
 

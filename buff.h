@@ -3,18 +3,20 @@
 
 /* for each line in the file */
 typedef struct {
-    char *data; /* line content */
+    char *text; /* line content */
     int    len; /* cached strlen of the line */
-    int    cap; /* line's capacity; allocated bytes; always >= len + 1 */
-    // int hlstate; /* computed regex or not */
+    int    capacity; /* line's capacity; allocated bytes; always >= len + 1 */
+    short *column_colors; /* column_colors[c] = color pair for col c (0 = no color) */
+    int hlite_NOK; /* 1 = needs recoloring (reapply regex expressions) */
+    int multiline; // 1 if the line is a part of or contains a multiline expression
 } Line;
 
 /* buffer created from file on disk; mutable source of truth */
 typedef struct {
-    Line   *lines; /* array of lines                   */
-    int   n_lines; /* lines currently in use           */
-    int cap_lines; /* no. of lines currently allocated */
-    int     dirty; /* unsaved changes (bool)           */
+    Line   *lines; /* array of lines         */
+    int   n_lines; /* lines currently in use */
+    int capacity; /* no. of lines allocated */
+    int     dirty; /* unsaved changes (bool) */
 } Buffer;
 
 /* initialize the buffer */

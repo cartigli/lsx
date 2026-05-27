@@ -85,6 +85,7 @@ typedef struct {
     int  v_choice;
     int max_lenfn;
     int   padding;
+    int block_size;
     int    n_cols;
     int col_width;
     int     v_lim;

@@ -12,14 +12,12 @@
 
 
 static int arg_parse_path(char *argv, Config *config) {
-    /* returns 1 if path built or entry found succesfully */
+    // returns 1 if the arg could be found as an entry
     int dftype = df_type(argv);
     if (dftype == 0) {
-        // print_inf(main_src, "file path as arg accepted");
         config->mode = EDIT_MODE;
         return 1;
     } else if (dftype == 1) {
-        // print_inf(main_src, "directory path as arg accepted");
         config->mode = MENU_MODE;
         return 1;
     } else {
@@ -29,11 +27,9 @@ static int arg_parse_path(char *argv, Config *config) {
                         sf_strcat(fp, argv, MAX_FILENAME)) { return 0; }
             dftype = df_type(fp);
             if (dftype == 0) {
-                // print_inf(main_src, "file path as arg accepted");
                 config->mode = EDIT_MODE;
                 return 1;
             } else if (dftype == 1) {
-                // print_inf(main_src, "directory path as arg accepted");
                 config->mode = MENU_MODE;
                 return 1;
             }
@@ -44,9 +40,12 @@ static int arg_parse_path(char *argv, Config *config) {
 
 
 static int arg_parse(int argc, char *argv[], Config *config) {
-    if (argc == 1) { config->mode = MENU_MODE; return 0; }
+    // returns 0 if args are valid & parsed correctly; any error is 1
+    config->mode = MENU_MODE;
+    if (argc == 1) { return 0; }
 
-    /* check if last flag is a path */
+    // check if the last flag is a path
+    // if it is, iterate through argc - 1
     int flag_end = argc;
     if (arg_parse_path(argv[argc - 1], config)) {
         print_inf(main_src, "path passed as arg OK");
@@ -70,21 +69,19 @@ static int arg_parse(int argc, char *argv[], Config *config) {
             config->mutable = 0;
             print_inf(main_src, "mutability disabled");
 
-        /* turning logs on or off (silenced or verbose) */
         } else if (strcmp("silent", argi) == 0 ||
                     strcmp("-s", argi) == 0) {
-            /* silent; logging level CRITICAL */
+            // silent: logging level CRITICAL
             config->verbosity = 5;
 
         } else if (strcmp("verbose", argi) == 0 ||
                     strcmp("-v", argi) == 0) {
-            /* verbose; logging level DEBUG */
+            // verbose: logging level DEBUG
             config->verbosity = 0;
 
-        /* setting a specific verbosity level */
+        // setting a specific verbosity: -v5, -v1, -v3, etc.,
         } else if (argi[0] == '-' && argi[1] == 'v') {
-            char v = argi[2]; /* -v5, -v1, v3, etc., */
-            if (v > '5' || v < '1') {
+            if (argi[2] > '5' || argi[2] < '1') {
                 print_err(main_src, "invalid flag; verbosity"
                             " must be between 1 - 5", 3);
                 return 1;
@@ -138,47 +135,35 @@ void run_win(Config *config) {
 }
 
 
-// int spinup_window(void) {
-//     initscr();
-//     keypad(stdscr, TRUE);
-//     raw(); /* capture all keystrokes and */
-//     noecho(); /* hide the characters from the screen */
-//     refresh(); /* update changes for getmaxyx & related */
-//     return 0;
-// }
-
-
 void menu_runner(Config *config) {
     MGMT mgmt;
     Mstate ms;
     menu_init(&mgmt, &ms, config);
-
-    // return; /* init time testing */
 
     while(1) {
         menu(&mgmt);
         char path[MAX_FILENAME];
         path[0] = '\0';
         switch(mgmt.intention) {
-            case 0: /* quit / done */
+            case 0: // quit
                 goto fin;
             case 1:
-                break; /* do nothing */
-            case 2: /* read (immutable edit) */
+                break; // do nothing
+            case 2: // read
                 if (untraverse(mgmt.cd, path)) { goto fin; }
                 pretty_runner(config, path, 0);
 
                 mgmt.cd = mgmt.cd->parent;
                 path[0] = '\0';
                 break;
-            case 3: /* edut (mutable read) */
+            case 3: // edit
                 if (untraverse(mgmt.cd, path)) { goto fin; }
                 pretty_runner(config, path, 1);
 
                 mgmt.cd = mgmt.cd->parent;
                 path[0] = '\0';
                 break;
-            case 4: /* 'cd', handling in menu.c */
+            case 4: // 'cd' (handled in menu)
                 break;
         }
         int h, w;
@@ -223,20 +208,20 @@ void menu_init(MGMT *mgmt, Mstate *ms, Config *config) {
     int block_cushion = max_rblocks(cd);
 
     new_MS(ms);
-    populate_MS(ms, cd, config->hide_size);
+    populate_MS(ms, cd, config->hide_size, block_cushion);
 
     new_management(mgmt);
 
     WINDOW *w = newwin(0, 0, 0, 0);
     keypad(w, TRUE);
-    box(w, 0, 0);
     wrefresh(w);
 
     ms->main = w;
 
     mgmt->ms = ms;
     mgmt->root = cd;
-    mgmt->cd = cd; /* fallback for first menu iteration */
+    // first menu cycle segment fault gaurd:
+    mgmt->cd = cd;
 
     mgmt->config = config;
     mgmt->padd_size = block_cushion;
@@ -276,7 +261,7 @@ void new_MS(Mstate *ms) {
 }
 
 
-void populate_MS(Mstate *ms, FSNode *cd, int hide_size) {
+void populate_MS(Mstate *ms, FSNode *cd, int hide_size, int block_size) {
     int xMax = getmaxx(stdscr);
 
     int xstrlen;
@@ -285,7 +270,11 @@ void populate_MS(Mstate *ms, FSNode *cd, int hide_size) {
         if (ms->max_lenfn < xstrlen) { ms->max_lenfn = xstrlen; }
     }
 
-    ms->padding = hide_size ? 2 : 17;
+    // ms->padding = hide_size ? 2 : 17;
+    // ms->padding = 2;
+    // if (!hide_size) { ms->padding += 15; }
+    ms->block_size = block_size;
+    ms->padding = hide_size ? 2 : 10 + ms->block_size;
 
     ms->col_width = ms->max_lenfn + ms->padding;
     ms->n_cols = xMax / ms->col_width;
@@ -310,22 +299,16 @@ void pretty_runner(Config *config, const char path[], int mutable) {
     Cursor curs;
 
     b = buffer_load(path);
-    if (!b) {
-        print_err(main_src, "failed to initiate the buffer", 5);
-        goto teardown;
-    }
+    if (!b) { goto teardown; }
 
     initialize_cursor(&curs, config);
 
     init_rt_vars(&rt, b);
 
     if (!config->colors_loaded) {
-        if (load_colors()) {
-            return;
-        } else {
-            config->colors_loaded = 1;
-        }
+        if (load_colors()) { return; }
     }
+    config->colors_loaded = 1;
 
     language l;
     l = detect_lang(path);
@@ -333,10 +316,7 @@ void pretty_runner(Config *config, const char path[], int mutable) {
 
     curs_set(1);
 
-    /* run_win the editor */
-    if (alter_file(b, &rt, &curs, path, mutable)) {
-        print_err(main_src, "alter file returned an error", 4);
-    }
+    alter_file(b, &rt, &curs, path, mutable);
 
 teardown:
     free_reg();

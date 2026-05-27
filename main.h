@@ -24,7 +24,7 @@ void new_management(MGMT *mgmt);
 
 void new_MS(Mstate *ms);
 
-void populate_MS(Mstate *ms, FSNode *cd, int hide_size);
+void populate_MS(Mstate *ms, FSNode *cd, int hide_size, int block_size);
 
 
 /* main editor managing function for editing files */
