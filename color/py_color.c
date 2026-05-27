@@ -1,6 +1,30 @@
 #include "c_color.h"
 
 
+SyntaxDemands PY_MXX_INITTERMS[] = {
+    {
+        .expression = "\"\"\"",
+        .color_code = YELLOW,
+        .type = NUMERICALS,
+    },
+};
+
+SyntaxDemands PY_MXX_KILLTERMS[] = {
+    {
+        .expression = "\"\"\"",
+        .color_code = YELLOW,
+        .type = NUMERICALS,
+    },
+};
+
+SyntaxTwins PY_MXX_TWINTERMS[] = {
+    {
+        .ix = PY_MXX_INITTERMS,
+        .kx = PY_MXX_KILLTERMS,
+    },
+};
+
+
 SyntaxDemands PY_DEMANDS[] = {
     /*  NUMERICALS */
     {
@@ -130,3 +154,6 @@ int PY_INDENT_LENGTH = 4;
 
 
 const unsigned int PY_N_DEMANDS = sizeof(PY_DEMANDS) / sizeof(PY_DEMANDS[0]);
+
+const unsigned int N_PY_MXX_TWINTERMS =
+            sizeof(PY_MXX_KILLTERMS) / sizeof(PY_MXX_KILLTERMS[0]);

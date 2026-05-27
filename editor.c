@@ -101,12 +101,11 @@ void alter_file(Buffer *b, RunTime *rt, Cursor *curs,
             rt->pad_col = curs->col - (rt->screen_w) + 1;
         }
 
-        // for (int i 0; i < b->n_lines; i++) {
-        //     Line *line = &b->lines[i];
-        //     // find all matches to the initiators of multi-line expressions
-        //     check_multiline_inits(l);
 
-        // highlighting text visible in the terminal window
+        // identify and highlight multi-line expressions
+        check_multiline_exps(b);
+
+        // highlighting text visible in the terminal window (by line)
         int ix = rt->pad_row;
         int xx = rt->pad_row + rt->screen_h - STATUS_RROWS;
         if (xx > b->n_lines) { xx = b->n_lines; }
@@ -119,10 +118,10 @@ void alter_file(Buffer *b, RunTime *rt, Cursor *curs,
             // for each char in the line, apply its color
             for (int i = 0; i < line->len; i++) {
                 // if the char's color code is 0: skip
-                if (!line->column_colors[i]) { continue; }
+                if (!line->cells[i].color) { continue; }
                 // else, apply that char's color code
                 mvwchgat(rt->pad, dx, i, 1, A_NORMAL,
-                            line->column_colors[i], NULL);
+                            line->cells[i].color, NULL);
             }
         }
 
@@ -144,17 +143,134 @@ void alter_file(Buffer *b, RunTime *rt, Cursor *curs,
 }
 
 
-// void check_multiline_inits(Line *line) {
-//     if (!line->hlite_NOK) { return; }
-//     if (line->multiline) { line->multiline = 0; }
-//     for (int i = 0; i < line->len; i++) { line->column_colors[i] = 0; }
+void check_multiline_exps(Buffer *b) {
+    // scans, indexes, and highlights multi-line expressions throughout the buffer
+    for (int i = 0; i < b->n_lines; i++) {
+        Line *line = &b->lines[i];
+        // multiline could need reprocessing
+        // regardless of whether a single line
+        // has been edited since the last regex
+        // computation & color application, so
+        // wipe all current inits & kills before
+        for (int c = 0; c < line->len; c++) {
+            line->cells[c].mx_line_initr = 0;
+            line->cells[c].mx_line_killr = 0;
+        }
+    }
+    for (int i = 0; i < b->n_lines; i++) {
+        int demand_pairs = N_GLOBAL_MULTILINE_DEMAND_PAIRS;
+        Line *line = &b->lines[i];
 
-//     for (int e = 0; e < (int)N_GLOBAL_MULTILINE_DEMANDS; e++) {
-//         if (GLOBAL_MULTILINE_DEMANDS[e].compiled) {
-//             regex_indicate(line->column_colors, line->text, line->len,
-//                         &GLOBAL_MULTILINE_DEMANDS[e].cmp_expression,
-//                         GLOBAL_MULTILINE_DEAMNDS[e].color_code);
-//         }
+        SyntaxDemands *init_demands = GLOBAL_MULTILINE_PAIRS->ix;
+        SyntaxDemands *kill_demands = GLOBAL_MULTILINE_PAIRS->kx;
+
+        for (int e = 0; e < demand_pairs; e++) {
+            if (init_demands[e].compiled) {
+                regex_find_inits(line->cells, line->text, line->len,
+                            &init_demands[e].cmp_expression,
+                            init_demands[e].color_code);
+            }
+        }
+
+        for (int o = 0; o < demand_pairs; o++) {
+            if (kill_demands[o].compiled) {
+                regex_find_kills(line->cells, line->text, line->len,
+                            &kill_demands[o].cmp_expression);
+            }
+        }
+    }
+
+    id_multiline_exp_chars(b);
+}
+
+
+void id_multiline_exp_chars(Buffer *b) {
+    // PROBLEM: A rogue intiiator without a killer changes the color
+    // of every char from there on. This is intended & ideal, but
+    // when the initiator is removed, or a killer is added, the text
+    // that was previously colored is no longer a part of the multi-
+    // line expression, and so each of their colors should be set to
+    // 0 and their lines should be flagged for refresh & highlight.
+    // Deciding when to reset a char's color & when to label it as an
+    // active component of the highlight is the trick & intention here
+    //
+    // add_astra+ added the new color ML_GRAY for distinction between
+    //     single line comments or other gray text in the buffer
+    short color = 0; // highlight ? highlight color : 0
+    int terminate_ = 0; // is an active highlight ? 1 : 0
+    for (int l = 0; l < b->n_lines; l++) {
+        Line *line = &b->lines[l];
+        for (int c = 0, n = line->len; c < n; c++) {
+            Cell *cell = &line->cells[c];
+            int was_active = cell->is_active;
+
+            // only one of three can be satisfied
+            // for a given character
+            // first priority is initiators, then
+            // terminators, then color only gets
+            // reset *after* the terminator is not
+            // detected anymore so it gets colored
+            if (cell->mx_line_initr) {
+                color = cell->color;
+                cell->is_active = 1;
+                terminate_ = 0;
+            } else if (cell->mx_line_killr) {
+                terminate_ = 1; // throw the signal
+            } else if (terminate_) {
+                color = 0; // reset
+                terminate_ = 0; // no term, no init
+            }
+
+            if (color) {
+                cell->color = color; // highlight it, and
+                cell->is_active = 1; // don't erase its highlight
+            }
+            if (!color) { // if not in an active highlight, show that
+                cell->is_active = 0; // but don't set/change its color
+                // if the char was an active highlight, but the
+                // highlight is currently *inactive*, then refresh
+                // that line. but if not, it had no changes, and
+                // refreshing means every single line gets refreshed
+                if (was_active) { line->hlite_NOK = 1; }
+            }
+        }
+    }
+}
+
+
+void regex_find_inits(Cell *cells, const char *text, int len,
+            const regex_t *regxx, int code) {
+    int pos = 0;
+    regmatch_t pmatch[1]; // only one match for multi-line expressions
+    while (regexec(regxx, text + pos, 1, pmatch, 0) == 0) {
+        regoff_t start_offset = pmatch[0].rm_so;
+        regoff_t end_offset = pmatch[0].rm_eo;
+        for (regoff_t i = pos + start_offset; i < pos + end_offset; i++) {
+            if (i >= len) { break; }
+            cells[i].color = (short)code; // color to highlight match
+            cells[i].mx_line_initr = 1; // mark the match as the start of a multi-line expression
+        }
+        pos += pmatch[0].rm_eo;
+        if (pmatch[0].rm_so == pmatch[0].rm_eo) { break; }
+    }
+}
+
+
+void regex_find_kills(Cell *cells, const char *text, int len,
+            const regex_t *regxx) {
+    int pos = 0;
+    regmatch_t pmatch[1];
+    while (regexec(regxx, text + pos, 1, pmatch, 0) == 0) {
+        regoff_t start_offset = pmatch[0].rm_so;
+        regoff_t end_offset = pmatch[0].rm_eo;
+        for (regoff_t i = pos + start_offset; i < pos + end_offset; i++) {
+            if (i >= len) { break; }
+            cells[i].mx_line_killr = 1; // mark as the multi-line expression's terminator
+        }
+        pos += pmatch[0].rm_eo;
+        if (pmatch[0].rm_so == pmatch[0].rm_eo) { break; }
+    }
+}
 
 
 void refresh_expression(Line *l) {
@@ -163,21 +279,26 @@ void refresh_expression(Line *l) {
 
     // if highlight is OK, do nothing
     if (!l->hlite_NOK) { return; }
-    // before computing, zero out the line's highlight array (column_colors)
-    for (int i = 0; i < l->len; i++) { l->column_colors[i] = 0; }
+    // before computing, zero out the line's highlight array
+    for (int i = 0; i < l->len; i++) {
+        // if (l->cells[i].color == ML_GRAY) { continue; }
+        if (l->cells[i].is_active) { continue; }
+        l->cells[i].color = 0;
+    }
     for (unsigned int e = 0; e < N_GLOBAL_DEMANDS; e++) {
         if (!GLOBAL_DEMANDS[e].compiled) {
             print_inf(edit_src, "skipping uncompiled regex expression"); continue;
         }
-        regex_color(l->column_colors, l->text, l->len,
+        regex_color(l->cells, l->text, l->len,
                     &GLOBAL_DEMANDS[e].cmp_expression, GLOBAL_DEMANDS[e].color_code);
     }
     l->hlite_NOK = 0;
 }
 
 
-void regex_color(short *column_colors, const char *text,
-                int len, const regex_t *regxx, int code) {
+// void regex_color(short *column_colors, const char *text,
+void regex_color(Cell *cells, const char *text, int len,
+                const regex_t *regxx, int code) {
     // computes a compiled regex expression against a string
     // records all matches
 
@@ -202,9 +323,8 @@ void regex_color(short *column_colors, const char *text,
         // set the column_color of that char's position to the given expression's color code
         for (regoff_t i = pos + so, x = pos + eo; i < x; i++) {
             if (i >= len) { break; }
-            // if (column_colors[i] == 0) {
-            column_colors[i] = (short)code;
-            // }
+            // if the char's current color is 0, replace it
+            if (!cells[i].color) { cells[i].color = (short)code; }
         }
 
         // move the position past the entire match (if match)

@@ -128,6 +128,7 @@ enum COLORS {
     PY_CYAN = 10,
     PY_PURPLE = 11,
     PY_GREEN = 12,
+    ML_GRAY = 13,
 };
 
 /* enforce the order of expressions *
@@ -167,6 +168,11 @@ typedef struct {
     CmpOrder          type; /* the type of expression */
     int           compiled; /* bool for a valid compile */
 } SyntaxDemands;
+
+typedef struct {
+    SyntaxDemands *ix;
+    SyntaxDemands *kx;
+} SyntaxTwins;
 
 
 #endif

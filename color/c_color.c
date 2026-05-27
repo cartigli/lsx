@@ -1,6 +1,31 @@
 #include "c_color.h"
 
 
+SyntaxDemands C_MULTILINE_COMMENT_I[] = {
+    {
+        // .expression = "^INIT$",
+        .expression = "[[:space:]]*/\\*[[:space:]]*",
+        .color_code = ML_GRAY,
+        .type = NUMERICALS,
+    },
+};
+SyntaxDemands C_MULTILINE_COMMENT_K[] = {
+    {
+        // .expression = "^KILL$",
+        .expression = "[[:space:]]*\\*/[[:space:]]*",
+        .color_code = ML_GRAY,
+        .type = NUMERICALS,
+    },
+};
+
+SyntaxTwins C_MULTI_PAIR_DEMANDS[] = {
+    {
+        .ix = C_MULTILINE_COMMENT_I,
+        .kx = C_MULTILINE_COMMENT_K,
+    },
+};
+
+
 /* not const anymore because needs to gain & hold compiled regex expressions */
 SyntaxDemands C_DEMANDS[] = {
     /*  NUMERICALS */
@@ -140,3 +165,6 @@ int C_INDENT_LENGTH = 4;
 
 
 const unsigned int C_N_DEMANDS = sizeof(C_DEMANDS) / sizeof(C_DEMANDS[0]);
+
+const unsigned int N_C_MULTI_PAIR_DEMANDS =
+            sizeof(C_MULTILINE_COMMENT_I) / sizeof(C_MULTILINE_COMMENT_I[0]);

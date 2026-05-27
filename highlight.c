@@ -11,9 +11,13 @@
 /* externed global regex rules */
 SyntaxDemands *GLOBAL_DEMANDS = NULL;
 unsigned int N_GLOBAL_DEMANDS = 0;
+
 const char *GLOBAL_INDENTABLES = NULL;
 const char *GLOBAL_DEDENTABLES = NULL;
 int GLOBAL_INDENT_LEN = 0;
+
+SyntaxTwins *GLOBAL_MULTILINE_PAIRS = NULL;
+unsigned int N_GLOBAL_MULTILINE_DEMAND_PAIRS = 0;
 
 
 /* RGB codes for color scheme (hexadecimal format) */
@@ -55,6 +59,7 @@ const ColorCode COLOR_CODES[] = {
     { "44", "cf", "6e", }, /* py_green  */
     // { 68, 207, 110, }, /* py_green  */
     // { 267, 812, 431, },
+    { "b3", "b3", "b3", }, // duplicate for color distinction
 };
 
 
@@ -85,6 +90,7 @@ int load_colors(void) {
     short py_cyan    = 23; /* python cyan */
     short py_purple  = 24; /* python purple */
     short py_green   = 25; /* python green */
+    short ml_gray    = 26; // duplicate gray
     
     // init_color(keys_npres, 961, 667, 828
     init_color(
@@ -162,6 +168,11 @@ int load_colors(void) {
         hex_compr(COLOR_CODES[11].g),
         hex_compr(COLOR_CODES[11].b)
     );
+    init_color(ml_gray,
+        hex_compr(COLOR_CODES[12].r),
+        hex_compr(COLOR_CODES[12].g),
+        hex_compr(COLOR_CODES[12].b)
+    );
 
     init_pair(1,  keys_npres, COLOR_BLACK);
     init_pair(2,  functions,  COLOR_BLACK);
@@ -175,39 +186,53 @@ int load_colors(void) {
     init_pair(10, py_cyan,    COLOR_BLACK);
     init_pair(11, py_purple,  COLOR_BLACK);
     init_pair(12, py_green,   COLOR_BLACK);
+    init_pair(13, ml_gray,   COLOR_BLACK);
 
     return 0;
 }
 
 
 int compile_regex(language lang) {
-    /* for every demand, compile the RegEx expression & cache the result *
-     * additionally, enforce the order with a check before proceeding */
+    // for the given lang, cache each regex expression after compiling it
+    // additionally, quit if the regex expressions' are misordered
     SyntaxDemands *active_demands = NULL;
     unsigned int n_demands = 0;
     const char *active_indentables = NULL;
     const char *active_dedentables = NULL;
+    SyntaxTwins *active_multi_pairs = NULL;
+    int n_active_multi_pairs = 0;
     int active_indent_len = 0;
 
     switch(lang) {
         case c:
             active_demands = C_DEMANDS;
             n_demands = C_N_DEMANDS;
+
             active_indentables = C_INDENTABLES;
             active_dedentables = C_DEDENTABLES;
             active_indent_len = C_INDENT_LENGTH;
+
+            active_multi_pairs = C_MULTI_PAIR_DEMANDS;
+            n_active_multi_pairs = N_C_MULTI_PAIR_DEMANDS;
             break;
+
         case py:
             active_demands = PY_DEMANDS;
             n_demands = PY_N_DEMANDS;
+
             active_indentables = PY_INDENTABLES;
             active_dedentables = PY_DEDENTABLES;
             active_indent_len = PY_INDENT_LENGTH;
+
+            active_multi_pairs = PY_MXX_TWINTERMS;
+            n_active_multi_pairs = N_PY_MXX_TWINTERMS;
             break;
+
         case blank:
         default:
             active_demands = BLANK_DEMANDS;
             n_demands = BLANK_N_DEMANDS;
+
             active_indentables = BLANK_INDENTABLES;
             active_dedentables = BLANK_DEDENTABLES;
             active_indent_len = BLANK_INDENT_LENGTH;
@@ -223,17 +248,26 @@ int compile_regex(language lang) {
     GLOBAL_DEDENTABLES = active_dedentables;
     GLOBAL_INDENT_LEN = active_indent_len;
 
+    GLOBAL_MULTILINE_PAIRS = active_multi_pairs;
+    N_GLOBAL_MULTILINE_DEMAND_PAIRS = n_active_multi_pairs;
+
     CmpOrder previous = NUMERICALS;
     for (unsigned int x = 0; x < n_demands; x++) {
         /* hard stop if mis-orderd expressions */
         if (previous > active_demands[x].type) {
             print_err(hlte_src, "failed to compile regex_expressions;"
-                        " their order is likely incorrect", 3);
+                        " their order is corrupt", 3);
             return 1;
         }
         previous = active_demands[x].type;
         active_demands[x].compiled = (regcomp(&active_demands[x].cmp_expression,
                     active_demands[x].expression, REG_EXTENDED) == 0) ? 1 : 0;
+    }
+    for (unsigned int i = 0; i < 1; i++) {
+        active_multi_pairs->ix[i].compiled = (regcomp(&active_multi_pairs->ix[i].cmp_expression,
+                    active_multi_pairs->ix[i].expression, REG_EXTENDED) == 0) ? 1 : 0;
+        active_multi_pairs->kx[i].compiled = (regcomp(&active_multi_pairs->kx[i].cmp_expression,
+                    active_multi_pairs->kx[i].expression, REG_EXTENDED) == 0) ? 1 : 0;
     }
     return 0;
 }

@@ -35,7 +35,16 @@ int whitespace(Buffer *b, int row);
 // runs (or decides not to run) the compiled expressions against lines of text
 void refresh_expression(Line *l);
 /* highlights the syntax from a set of predefined RegEx Expressions */
-void regex_color(short *column_colors, const char *text, int len, const regex_t *regxx, int code);
+// void regex_color(short *column_colors, const char *text, int len, const regex_t *regxx, int code);
+void regex_color(Cell *cells, const char *text, int len, const regex_t *regxx, int code);
 
+void check_multiline_exps(Buffer *b);
+
+void id_multiline_exp_chars(Buffer *b);
+
+void regex_find_inits(Cell *cells, const char *text, int len,
+            const regex_t *regxx, int code);
+void regex_find_kills(Cell *cells, const char *text, int len,
+            const regex_t *regxx);
 
 #endif

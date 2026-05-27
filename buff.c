@@ -42,9 +42,10 @@ Buffer *buffer_load(const char *path) {
             l->text = NULL;
             l->len = 0;
             l->capacity = 0;
-            l->column_colors = NULL;
+            // l->column_colors = NULL;
+            l->cells = NULL;
             l->hlite_NOK = 1;
-            l->multiline = 0;
+            // l->multiline = 0;
 
             /* for lines longer than 4096 (identified by having no *
              * new line terminator) increase the line's reserve, update *
@@ -137,14 +138,16 @@ static void line_reserve(Line *l, int need) {
     l->capacity = new_capacity;
 
     // make the column_colors array match the new capacity's size & length
-    short *ctmp = realloc(l->column_colors, new_capacity * sizeof(short));
-    if (!ctmp) {
-        print_err(buff_src, "failed to realloc memory while expanding the column_colors array", 5);
+    // short *ctmp = realloc(l->column_colors, new_capacity * sizeof(short));
+    Cell *tcells = realloc(l->cells, new_capacity * sizeof(Cell));
+    if (!tcells) {
+        print_err(buff_src, "failed to realloc memory while expanding the color cells array", 5);
         free(tmp);
         return;
     }
     // update the line's column_colors to the expanded array
-    l->column_colors = ctmp;
+    // l->column_colors = ctmp;
+    l->cells = tcells;
 }
 
 
@@ -169,13 +172,15 @@ void fabricate_buffer(Buffer *b) {
     line.capacity = 32;
 
     // allocate a column_colors array to match
-    short *ctmp = calloc(1, 32 * sizeof(short));
-    if (!ctmp) {
-        print_err(buff_src, "failed to allocate memory for the column_colors array", 5);
+    // short *ctmp = calloc(1, 32 * sizeof(short));
+    Cell *tcells = calloc(1, 32 * sizeof(Cell));
+    if (!tcells) {
+        print_err(buff_src, "failed to allocate memory for the color cells array", 5);
         free(tmp);
         return;
     }
-    line.column_colors = ctmp;
+    // line.column_colors = ctmp;
+    line.cells = tcells;
 
     // assign the temporary line to the buffer & update the count
     b->lines[0] = line;
@@ -208,7 +213,7 @@ void buffer_insert_char(Buffer *b, int row, int col, char c) {
     b->dirty = 1;
     // and indicate the line's highlighting needs to be refreshed
     line->hlite_NOK = 1;
-    line->multiline = 0;
+    // line->multiline = 0;
 }
 
 
@@ -230,7 +235,7 @@ void buffer_delete_char(Buffer *b, int row, int col) {
     b->dirty = 1;
     // and indicate the line's highlighting needs to be refreshed
     l->hlite_NOK = 1;
-    l->multiline = 0;
+    // l->multiline = 0;
 }
 
 
@@ -259,13 +264,14 @@ void buffer_split_line(Buffer *b, int row, int col) {
     dst->text = NULL;
     dst->len = 0;
     dst->capacity = 0;
-    dst->column_colors = NULL;
+    // dst->column_colors = NULL;
+    dst->cells = NULL;
 
     // indicate both source & destination's highlighting needs to be refreshed
     dst->hlite_NOK = 1;
-    dst->multiline = 0;
+    // dst->multiline = 0;
     src->hlite_NOK = 1;
-    src->multiline = 0;
+    // src->multiline = 0;
 
     // reserve the new line memory, size of original line - col + 1 for \0
     line_reserve(dst, tail_len + 1);
@@ -312,7 +318,8 @@ void buffer_join_lines(Buffer *b, int row) {
     // free the current row/line's text
     free(current_line->text);
     // free its color index as well
-    free(current_line->column_colors);
+    // free(current_line->column_colors);
+    free(current_line->cells);
 
     // shift the lines from below the cursor's row & on up one
     memmove(&b->lines[row], // shift into the cursor's row
@@ -326,7 +333,7 @@ void buffer_join_lines(Buffer *b, int row) {
 
     // indicate the previous line needs to be refreshed
     b->lines[row - 1].hlite_NOK = 1;
-    b->lines[row - 1].multiline = 0;
+    // b->lines[row - 1].multiline = 0;
 }
 
 
@@ -350,9 +357,10 @@ void buffer_duplicate_line(Buffer *b, int row) {
     dst->text = NULL;
     dst->len = 0;
     dst->capacity = 0;
-    dst->column_colors = NULL;
+    // dst->column_colors = NULL;
+    dst->cells = NULL;
     dst->hlite_NOK = 1;
-    dst->multiline = 0;
+    // dst->multiline = 0;
 
     // reserve room in the new line for the current
     // line's content to be duplicated + \0
@@ -405,7 +413,8 @@ int buffer_writeout(Buffer *b, const char *path) {
 void free_buff(Buffer *b) {
     for (int i = 0; i < b->n_lines; i++) {
         free(b->lines[i].text);
-        free(b->lines[i].column_colors);
+        // free(b->lines[i].column_colors);
+        free(b->lines[i].cells);
     }
     free(b->lines);
     free(b);

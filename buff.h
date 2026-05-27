@@ -1,14 +1,26 @@
 #ifndef BUFF_H
 #define BUFF_H
 
+
+typedef struct {
+    short color;
+    // should be one flag/value that's 1 for init, 2 for terminate
+    int mx_line_initr; // 1 if leads/starts a multiline expression
+    int mx_line_killr; // 1 if terminates a multiline expression
+
+    int is_active; // 1 if the char is a component of an expression
+    // inclusive; contains the chars of the init & term sequences
+} Cell;
+
 /* for each line in the file */
 typedef struct {
     char *text; /* line content */
     int    len; /* cached strlen of the line */
     int    capacity; /* line's capacity; allocated bytes; always >= len + 1 */
-    short *column_colors; /* column_colors[c] = color pair for col c (0 = no color) */
+    // short *column_colors; /* column_colors[c] = color pair for col c (0 = no color) */
+    Cell *cells;
     int hlite_NOK; /* 1 = needs recoloring (reapply regex expressions) */
-    int multiline; // 1 if the line is a part of or contains a multiline expression
+    // int multiline; // 1 if the line is a part of or contains a multiline expression
 } Line;
 
 /* buffer created from file on disk; mutable source of truth */
