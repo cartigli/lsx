@@ -11,7 +11,7 @@ extern const char *C_INDENTABLES;
 extern const char *C_DEDENTABLES;
 extern int C_INDENT_LENGTH;
 
-extern SyntaxTwins C_MULTI_PAIR_DEMANDS[];
+extern SyntaxTwins C_TWINTERMS[];
 extern const unsigned int N_C_MULTI_PAIR_DEMANDS;
 
 

@@ -18,7 +18,7 @@ extern const char *GLOBAL_DEDENTABLES;
 extern int GLOBAL_INDENT_LEN;
 
 // multi-line demands; initiators & terminators
-SyntaxTwins *GLOBAL_MULTILINE_PAIRS;
+extern SyntaxTwins *GLOBAL_MULTILINE_PAIRS;
 extern unsigned int N_GLOBAL_MULTILINE_DEMAND_PAIRS;
 
 // calculate & compile ncurses color indeces

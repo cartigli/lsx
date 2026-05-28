@@ -1,27 +1,47 @@
 #include "c_color.h"
 
 
-SyntaxDemands C_MULTILINE_COMMENT_I[] = {
+SyntaxDemands C_CMMT_INITEXP[] = {
     {
-        // .expression = "^INIT$",
         .expression = "[[:space:]]*/\\*[[:space:]]*",
         .color_code = ML_GRAY,
         .type = NUMERICALS,
     },
 };
-SyntaxDemands C_MULTILINE_COMMENT_K[] = {
+
+SyntaxDemands C_CMMT_KILLEXP[] = {
     {
-        // .expression = "^KILL$",
         .expression = "[[:space:]]*\\*/[[:space:]]*",
         .color_code = ML_GRAY,
         .type = NUMERICALS,
     },
 };
 
-SyntaxTwins C_MULTI_PAIR_DEMANDS[] = {
+SyntaxDemands C_NXTLSTR_INITEXP[] = {
     {
-        .ix = C_MULTILINE_COMMENT_I,
-        .kx = C_MULTILINE_COMMENT_K,
+        .expression = "\"[[:space:][:digit:][:print:]]*\\\\$",
+        .color_code = YELLOW,
+        .type = NUMERICALS,
+    },
+};
+
+SyntaxDemands C_NXTLSTR_KILLEXP[] = {
+    {
+        .expression = "^[[:space:][:digit:][:print:]]*\";$",
+        .color_code = YELLOW,
+        .type = NUMERICALS,
+    },
+};
+
+
+SyntaxTwins C_TWINTERMS[] = {
+    {
+        .ix = C_CMMT_INITEXP,
+        .kx = C_CMMT_KILLEXP,
+    },
+    {
+        .ix = C_NXTLSTR_INITEXP,
+        .kx = C_NXTLSTR_KILLEXP,
     },
 };
 
@@ -167,4 +187,4 @@ int C_INDENT_LENGTH = 4;
 const unsigned int C_N_DEMANDS = sizeof(C_DEMANDS) / sizeof(C_DEMANDS[0]);
 
 const unsigned int N_C_MULTI_PAIR_DEMANDS =
-            sizeof(C_MULTILINE_COMMENT_I) / sizeof(C_MULTILINE_COMMENT_I[0]);
+            sizeof(C_TWINTERMS) / sizeof(C_TWINTERMS[0]);

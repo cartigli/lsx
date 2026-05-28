@@ -10,8 +10,8 @@ extern const char *PY_INDENTABLES;
 extern const char *PY_DEDENTABLES;
 extern int PY_INDENT_LENGTH;
 
-extern SyntaxTwins PY_MXX_TWINTERMS[];
-extern const unsigned int N_PY_MXX_TWINTERMS;
+extern SyntaxTwins PY_TWINTERMS[];
+extern const unsigned int N_PY_TWINTERMS;
 
 extern const unsigned int PY_N_DEMANDS;
 

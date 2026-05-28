@@ -8,15 +8,18 @@
 #define LOG_DEST "lx.log"
 #define MAX_ERR_LEN 1024
 
+
 /* editor */
 #define MAX_STTM_LEN 25
 #define STATUS_RROWS 1
+
 
 /* fsio */
 /* (POSIX) byte size per block on disk */
 #define ST_BLOCK_SIZE 512
 /* max permissable chars in a filename */
 #define MAX_FILENAME 1024
+
 
 /* note: the cwd found holds the root path & has no parent */
 /* self referencing struct for all filesystem instances */
@@ -30,11 +33,13 @@ typedef struct FSNode {
     struct FSNode*    parent;
 } FSNode;
 
+
 /* runtime mode */
 typedef enum {
     MENU_MODE,
     EDIT_MODE,
 } MODE;
+
 
 /* runtime config */
 typedef struct {
@@ -64,6 +69,7 @@ typedef struct {
     int    pad_w; /* pad width              */
 } RunTime;
 
+
 /* cursor stats & specs */
 typedef struct {
     int      row; /* cursor row */
@@ -91,6 +97,7 @@ typedef struct {
     int     v_lim;
     int    ff_row;
 } Mstate;
+
 
 /* cross file communication & status state */
 typedef struct {
@@ -131,6 +138,7 @@ enum COLORS {
     ML_GRAY = 13,
 };
 
+
 /* enforce the order of expressions *
  * comprehended by the regex engine */
  typedef enum {
@@ -148,12 +156,7 @@ enum COLORS {
 } CmpOrder;
 
 
-// typedef struct {
-//     int r;
-//     int g;
-//     int b;
-// } ColorCode;
-
+// a single color's RGB values in hexadecimal
 typedef struct {
     char r[4];
     char g[4];
@@ -168,6 +171,7 @@ typedef struct {
     CmpOrder          type; /* the type of expression */
     int           compiled; /* bool for a valid compile */
 } SyntaxDemands;
+
 
 typedef struct {
     SyntaxDemands *ix;

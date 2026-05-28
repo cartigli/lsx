@@ -3,6 +3,9 @@
 #include "error.h"
 #include "utils.h"
 
+char *s = "this is a multi \
+    line string";
+
 
 int sf_strcat(char *a, const char *o, int bufflen) {
     if (!a || !o) {

@@ -1,7 +1,7 @@
 #include "c_color.h"
 
 
-SyntaxDemands PY_MXX_INITTERMS[] = {
+SyntaxDemands PY_3DBQT_INITEXP[] = {
     {
         .expression = "\"\"\"",
         .color_code = YELLOW,
@@ -9,7 +9,7 @@ SyntaxDemands PY_MXX_INITTERMS[] = {
     },
 };
 
-SyntaxDemands PY_MXX_KILLTERMS[] = {
+SyntaxDemands PY_3DBQT_KILLEXP[] = {
     {
         .expression = "\"\"\"",
         .color_code = YELLOW,
@@ -17,10 +17,33 @@ SyntaxDemands PY_MXX_KILLTERMS[] = {
     },
 };
 
-SyntaxTwins PY_MXX_TWINTERMS[] = {
+
+SyntaxDemands PY_3SQT_INITEXP[] = {
     {
-        .ix = PY_MXX_INITTERMS,
-        .kx = PY_MXX_KILLTERMS,
+        .expression = "\'\'\'",
+        .color_code = YELLOW,
+        .type = NUMERICALS,
+    },
+};
+
+SyntaxDemands PY_3SQT_KILLEXP[] = {
+    {
+        .expression = "\'\'\'",
+        .color_code = YELLOW,
+        .type = NUMERICALS,
+    },
+};
+
+SyntaxTwins PY_TWINTERMS[] = {
+    // 'triple double quoted strings'
+    {
+        .ix = PY_3DBQT_INITEXP,
+        .kx = PY_3DBQT_KILLEXP,
+    },
+    // 'triple single quoted strings'
+    {
+        .ix = PY_3SQT_INITEXP,
+        .kx = PY_3SQT_KILLEXP,
     },
 };
 
@@ -155,5 +178,5 @@ int PY_INDENT_LENGTH = 4;
 
 const unsigned int PY_N_DEMANDS = sizeof(PY_DEMANDS) / sizeof(PY_DEMANDS[0]);
 
-const unsigned int N_PY_MXX_TWINTERMS =
-            sizeof(PY_MXX_KILLTERMS) / sizeof(PY_MXX_KILLTERMS[0]);
+const unsigned int N_PY_TWINTERMS =
+            sizeof(PY_TWINTERMS) / sizeof(PY_TWINTERMS[0]);

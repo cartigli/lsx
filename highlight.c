@@ -199,8 +199,8 @@ int compile_regex(language lang) {
     unsigned int n_demands = 0;
     const char *active_indentables = NULL;
     const char *active_dedentables = NULL;
-    SyntaxTwins *active_multi_pairs = NULL;
-    int n_active_multi_pairs = 0;
+    SyntaxTwins *active_twin_sets = NULL;
+    int n_active_twin_sets = 0;
     int active_indent_len = 0;
 
     switch(lang) {
@@ -212,8 +212,8 @@ int compile_regex(language lang) {
             active_dedentables = C_DEDENTABLES;
             active_indent_len = C_INDENT_LENGTH;
 
-            active_multi_pairs = C_MULTI_PAIR_DEMANDS;
-            n_active_multi_pairs = N_C_MULTI_PAIR_DEMANDS;
+            active_twin_sets = C_TWINTERMS;
+            n_active_twin_sets = N_C_MULTI_PAIR_DEMANDS;
             break;
 
         case py:
@@ -224,8 +224,8 @@ int compile_regex(language lang) {
             active_dedentables = PY_DEDENTABLES;
             active_indent_len = PY_INDENT_LENGTH;
 
-            active_multi_pairs = PY_MXX_TWINTERMS;
-            n_active_multi_pairs = N_PY_MXX_TWINTERMS;
+            active_twin_sets = PY_TWINTERMS;
+            n_active_twin_sets = N_PY_TWINTERMS;
             break;
 
         case blank:
@@ -248,8 +248,12 @@ int compile_regex(language lang) {
     GLOBAL_DEDENTABLES = active_dedentables;
     GLOBAL_INDENT_LEN = active_indent_len;
 
-    GLOBAL_MULTILINE_PAIRS = active_multi_pairs;
-    N_GLOBAL_MULTILINE_DEMAND_PAIRS = n_active_multi_pairs;
+    GLOBAL_MULTILINE_PAIRS = active_twin_sets;
+    N_GLOBAL_MULTILINE_DEMAND_PAIRS = n_active_twin_sets;
+
+    char buff[1024];
+    snprintf(buff, 1024, "active twin sets: %i", n_active_twin_sets);
+    print_inf(hlte_src, buff);
 
     CmpOrder previous = NUMERICALS;
     for (unsigned int x = 0; x < n_demands; x++) {
@@ -263,12 +267,22 @@ int compile_regex(language lang) {
         active_demands[x].compiled = (regcomp(&active_demands[x].cmp_expression,
                     active_demands[x].expression, REG_EXTENDED) == 0) ? 1 : 0;
     }
-    for (unsigned int i = 0; i < 1; i++) {
-        active_multi_pairs->ix[i].compiled = (regcomp(&active_multi_pairs->ix[i].cmp_expression,
-                    active_multi_pairs->ix[i].expression, REG_EXTENDED) == 0) ? 1 : 0;
-        active_multi_pairs->kx[i].compiled = (regcomp(&active_multi_pairs->kx[i].cmp_expression,
-                    active_multi_pairs->kx[i].expression, REG_EXTENDED) == 0) ? 1 : 0;
+    for (int p = 0; p < (int)N_GLOBAL_MULTILINE_DEMAND_PAIRS; p++) {
+        //     // for (int i = 0; i < n_active_twin_sets; i++) {
+        active_twin_sets[p].ix->compiled = (regcomp(&active_twin_sets[p].ix->cmp_expression,
+                    active_twin_sets[p].ix->expression, REG_EXTENDED) == 0) ? 1 : 0;
+        active_twin_sets[p].kx->compiled = (regcomp(&active_twin_sets[p].kx->cmp_expression,
+                    active_twin_sets[p].kx->expression, REG_EXTENDED) == 0) ? 1 : 0;
     }
+
+
+    // // semi - broken : second expression doesn't compute
+    // for (int i = 0; i < n_active_twin_sets; i++) {
+    //     active_twin_sets->ix[i].compiled = (regcomp(&active_twin_sets->ix[i].cmp_expression,
+    //                 active_twin_sets->ix[i].expression, REG_EXTENDED) == 0) ? 1 : 0;
+    //     active_twin_sets->kx[i].compiled = (regcomp(&active_twin_sets->kx[i].cmp_expression,
+    //                 active_twin_sets->kx[i].expression, REG_EXTENDED) == 0) ? 1 : 0;
+    // }
     return 0;
 }
 
@@ -284,4 +298,14 @@ void free_reg(void) {
     GLOBAL_DEMANDS = NULL;
     GLOBAL_INDENTABLES = NULL;
     GLOBAL_DEDENTABLES = NULL;
+    for (unsigned int i = 0, n = N_GLOBAL_MULTILINE_DEMAND_PAIRS; i < n; i++) {
+        if (GLOBAL_MULTILINE_PAIRS[i].ix->compiled) {
+            regfree(&GLOBAL_MULTILINE_PAIRS[i].ix->cmp_expression);
+        }
+        if (GLOBAL_MULTILINE_PAIRS[i].kx->compiled) {
+            regfree(&GLOBAL_MULTILINE_PAIRS[i].kx->cmp_expression);
+        }
+    }
+    GLOBAL_MULTILINE_PAIRS = NULL;
+    N_GLOBAL_MULTILINE_DEMAND_PAIRS = 0;
 }

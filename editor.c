@@ -103,7 +103,8 @@ void alter_file(Buffer *b, RunTime *rt, Cursor *curs,
 
 
         // identify and highlight multi-line expressions
-        check_multiline_exps(b);
+        // check_multiline_exps(b);
+        walk_explicit_express(b);
 
         // highlighting text visible in the terminal window (by line)
         int ix = rt->pad_row;
@@ -143,48 +144,7 @@ void alter_file(Buffer *b, RunTime *rt, Cursor *curs,
 }
 
 
-void check_multiline_exps(Buffer *b) {
-    // scans, indexes, and highlights multi-line expressions throughout the buffer
-    for (int i = 0; i < b->n_lines; i++) {
-        Line *line = &b->lines[i];
-        // multiline could need reprocessing
-        // regardless of whether a single line
-        // has been edited since the last regex
-        // computation & color application, so
-        // wipe all current inits & kills before
-        for (int c = 0; c < line->len; c++) {
-            line->cells[c].mx_line_initr = 0;
-            line->cells[c].mx_line_killr = 0;
-        }
-    }
-    for (int i = 0; i < b->n_lines; i++) {
-        int demand_pairs = N_GLOBAL_MULTILINE_DEMAND_PAIRS;
-        Line *line = &b->lines[i];
-
-        SyntaxDemands *init_demands = GLOBAL_MULTILINE_PAIRS->ix;
-        SyntaxDemands *kill_demands = GLOBAL_MULTILINE_PAIRS->kx;
-
-        for (int e = 0; e < demand_pairs; e++) {
-            if (init_demands[e].compiled) {
-                regex_find_inits(line->cells, line->text, line->len,
-                            &init_demands[e].cmp_expression,
-                            init_demands[e].color_code);
-            }
-        }
-
-        for (int o = 0; o < demand_pairs; o++) {
-            if (kill_demands[o].compiled) {
-                regex_find_kills(line->cells, line->text, line->len,
-                            &kill_demands[o].cmp_expression);
-            }
-        }
-    }
-
-    id_multiline_exp_chars(b);
-}
-
-
-void id_multiline_exp_chars(Buffer *b) {
+void walk_explicit_express(Buffer *b) {
     // PROBLEM: A rogue intiiator without a killer changes the color
     // of every char from there on. This is intended & ideal, but
     // when the initiator is removed, or a killer is added, the text
@@ -194,83 +154,392 @@ void id_multiline_exp_chars(Buffer *b) {
     // Deciding when to reset a char's color & when to label it as an
     // active component of the highlight is the trick & intention here
     //
-    // add_astra+ added the new color ML_GRAY for distinction between
-    //     single line comments or other gray text in the buffer
-    short color = 0; // highlight ? highlight color : 0
-    int terminate_ = 0; // is an active highlight ? 1 : 0
+    // PROBLEM 2: A initiator that does not differ from the kill
+    // sequence cannot find a kill sequence; it will be all init
+    // SOLUTION: instead of searching for all inits & all kills,
+    // walk the content until an init is found, start a span, look
+    // for the kill (ignoring inits). Then, mark it & close the span.
+
+    // SyntaxDemands *open_demands = GLOBAL_MULTILINE_PAIRS->ix;
+    // SyntaxDemands *close_demands = GLOBAL_MULTILINE_PAIRS->kx;
+
+    // SyntaxTwins *twin_demands = &GLOBAL_MULTILINE_PAIRS;
+
+    // CharIndex close;
+    int in_span = 0;
+    int active_exp = -1;
+
+    int n_exps = (int)N_GLOBAL_MULTILINE_DEMAND_PAIRS;
+    in_span = 0;
+
     for (int l = 0; l < b->n_lines; l++) {
         Line *line = &b->lines[l];
-        for (int c = 0, n = line->len; c < n; c++) {
-            Cell *cell = &line->cells[c];
-            int was_active = cell->is_active;
+        int len = line->len;
+        int cursor = 0; // reset on every line
 
-            // only one of three can be satisfied
-            // for a given character
-            // first priority is initiators, then
-            // terminators, then color only gets
-            // reset *after* the terminator is not
-            // detected anymore so it gets colored
-            if (cell->mx_line_initr) {
-                color = cell->color;
-                cell->is_active = 1;
-                terminate_ = 0;
-            } else if (cell->mx_line_killr) {
-                terminate_ = 1; // throw the signal
-            } else if (terminate_) {
-                color = 0; // reset
-                terminate_ = 0; // no term, no init
-            }
+        while (1) {
+            if (cursor >= len) { break; }
 
-            if (color) {
-                cell->color = color; // highlight it, and
-                cell->is_active = 1; // don't erase its highlight
-            }
-            if (!color) { // if not in an active highlight, show that
-                cell->is_active = 0; // but don't set/change its color
-                // if the char was an active highlight, but the
-                // highlight is currently *inactive*, then refresh
-                // that line. but if not, it had no changes, and
-                // refreshing means every single line gets refreshed
-                if (was_active) { line->hlite_NOK = 1; }
+            if (!in_span) {
+                int valid_initiator = -1;
+                CharIndex initiator = { .start = len, .end = len, };
+
+                // find the first match of any expression initiator
+                for (int exp = 0; exp < n_exps; exp++) {
+                    // skip uncompiled regex expressions
+                    if (!GLOBAL_MULTILINE_PAIRS[exp].ix->compiled) { continue; }
+                    // init the competitor for valid comparisons
+                    CharIndex competitor = { .start = len, .end = len };
+                    if (regex_search(line->text, cursor,
+                                &GLOBAL_MULTILINE_PAIRS[exp].ix->cmp_expression, &competitor)) {
+
+                        // the match competitor found supercedes if:
+                        //     - the competitor starts before the prior
+                        // -- OR --
+                        //     - the competitor & prior start at the same
+                        //       char/column && **the competitor is longer**
+                        // i.e., <"> gets beaten out by <"""> if matched by expressions
+                        if (initiator.start > competitor.start) { // ||
+                                    // (initiator.start == competitor.start &&
+                                    // initiator.end < competitor.end)) {
+                            initiator = competitor;
+                            valid_initiator = exp;
+                        }
+                    }
+                }
+
+                // if the line matched NONE of the openors
+                // i.e., if the was never initiator initiated
+                if (valid_initiator == -1) {
+                    for (int c = cursor, n = len; c < n; c++) {
+                        if (line->cells[c].is_active) { line->hlite_NOK = 1; }
+                        line->cells[c].is_active = 0;
+                    }
+                    // if no initiator found, the  current line's while loop
+                    // requires a hard exit to avoid an infinite loop
+                    break; // << load bearing break!!
+
+                // else, process the matched initiator
+                } else {
+                    if (initiator.start == initiator.end) { continue; }
+
+                    in_span = 1; // set the state to in_span
+                    // ensure non of the previously unmatched chars are highlighted
+                    active_exp = valid_initiator;
+                    for (int c = cursor, n = initiator.start; c < n; c++) {
+                        if (line->cells[c].is_active) { line->hlite_NOK = 1; }
+                        line->cells[c].is_active = 0;
+                    }
+                    // highlight the opener itself (inclusive highlight)
+                    for (int h = initiator.start, n = initiator.end; h < n; h++) {
+                        line->cells[h].color = GLOBAL_MULTILINE_PAIRS[valid_initiator].ix->color_code;
+                        line->cells[h].is_active = 1;
+                    }
+                    // advance the cursor & look for it's closer
+                    cursor = initiator.end;
+                }
+
+            } else { // else, if in_span: the only job is to find the closer.
+                // if its not found, activate & color the whole line before moving to next
+                // line. if it is found, color from cursor to the close (inclusive) & fin.
+                if (active_exp == -1) {
+                    print_err(edit_src, "failed to track active expression for closing", 5);
+                    return;
+                }
+                if (!GLOBAL_MULTILINE_PAIRS[active_exp].kx->compiled) { continue; }
+                CharIndex close = { .start = len, .end = len };
+                if (!regex_search(line->text, cursor,
+                            &GLOBAL_MULTILINE_PAIRS[active_exp].kx->cmp_expression, &close)) {
+                    // activate & color the whole line
+                    for (int c = cursor, n = len; c < n; c++) {
+                        line->cells[c].color = GLOBAL_MULTILINE_PAIRS[active_exp].ix->color_code;
+                        line->cells[c].is_active = 1;
+                    }
+                    break;
+                } else {
+                    if (close.start == close.end) { continue; }
+                    for (int c = cursor, n = close.end; c < n; c++) {
+                        line->cells[c].color = GLOBAL_MULTILINE_PAIRS[active_exp].ix->color_code;
+                        line->cells[c].is_active = 1;
+                    }
+                    cursor = close.end;
+                    in_span = 0;
+                }
             }
         }
     }
 }
 
 
-void regex_find_inits(Cell *cells, const char *text, int len,
-            const regex_t *regxx, int code) {
-    int pos = 0;
-    regmatch_t pmatch[1]; // only one match for multi-line expressions
-    while (regexec(regxx, text + pos, 1, pmatch, 0) == 0) {
-        regoff_t start_offset = pmatch[0].rm_so;
-        regoff_t end_offset = pmatch[0].rm_eo;
-        for (regoff_t i = pos + start_offset; i < pos + end_offset; i++) {
-            if (i >= len) { break; }
-            cells[i].color = (short)code; // color to highlight match
-            cells[i].mx_line_initr = 1; // mark the match as the start of a multi-line expression
-        }
-        pos += pmatch[0].rm_eo;
-        if (pmatch[0].rm_so == pmatch[0].rm_eo) { break; }
-    }
-}
-
-
-void regex_find_kills(Cell *cells, const char *text, int len,
-            const regex_t *regxx) {
-    int pos = 0;
+int regex_search(const char *text, int pos, const regex_t *regxx, CharIndex *index) {
     regmatch_t pmatch[1];
     while (regexec(regxx, text + pos, 1, pmatch, 0) == 0) {
         regoff_t start_offset = pmatch[0].rm_so;
-        regoff_t end_offset = pmatch[0].rm_eo;
-        for (regoff_t i = pos + start_offset; i < pos + end_offset; i++) {
-            if (i >= len) { break; }
-            cells[i].mx_line_killr = 1; // mark as the multi-line expression's terminator
-        }
+        regoff_t end_offset   = pmatch[0].rm_eo;
+
+        index->start = pos + start_offset;
+        index->end = pos + end_offset;
+        // return only matches with width > 0
+        if (index->start < index->end) { return 1; }
+
         pos += pmatch[0].rm_eo;
-        if (pmatch[0].rm_so == pmatch[0].rm_eo) { break; }
+        if (pmatch[0].rm_so == pmatch[0].rm_eo) {
+            break;
+        }
     }
+    return 0;
 }
+
+
+
+
+
+
+//                 // find the first opener matched by ANY expression
+//                 // for (int i_exp = 0; i_exp < n_exps; i_exp++) {
+
+//                 if (!regex_search(line->text, position,
+//                             &open_demands[ex].cmp_expression, &open)) {
+//                     // while not in span, if no match found, deactive from
+//                     // 'cursor' position to EOL, & if was active, flag for refresh
+//                     for (int c = position, eol = line->len; c < eol; c++) {
+//                         if (line->cells[c].is_active) { line->hlite_NOK = 1; }
+//                         line->cells[c].is_active = 0;
+//                     }
+//                     break; // next line (which resets cursor)
+//                     // with new for loop, should continue to next opener
+//                 } else {
+//                     // active_exp = ex; // active matched expression opener
+//                     // color = open_demands[ex].color_code;
+//                     in_span = 1; // in span, if a 1 is returned (w.open)
+//                     // before coloring match, deactivate (& flag) the
+//                     // chars unmatched from 'cursor' to open.start
+//                     for (int c = position, n = open.start; c < n; c++) {
+//                         if (line->cells[c].is_active) { line->hlite_NOK = 1; }
+//                         line->cells[c].is_active = 0;
+//                     }
+//                     // flag as highlighted the open expression match
+//                     for (int open_ix = open.start, end_ix = open.end;
+//                                 open_ix < end_ix; open_ix++) {
+//                         line->cells[open_ix].is_active = 1;
+//                         line->cells[open_ix].color = color;
+//                     }
+//                     // advance the 'cursor'
+//                     position = open.end;
+//                     continue;
+//                 }
+//             } else {
+//                 // while in span, if no match for the close expression
+//                 if (!regex_search(line->text, position,
+//                             &close_demands[ex].cmp_expression, &close)) {
+//                     // activate & color the whole line
+//                     for (int c = position; c < line->len; c++) {
+//                         line->cells[c].is_active = 1; // whole line, no closer, all highlight
+//                         line->cells[c].color = color;                            
+//                     }
+//                     // next line (which resets cursor)
+//                     break;
+//                 } else {
+//                     // if a match was found, activate from 'cursor' to close.end
+//                     for (int c = position, n = close.end; c < n; c++) {
+//                         line->cells[c].is_active = 1;
+//                         line->cells[c].color = color;
+//                     }
+//                     // advance the 'cursor'
+//                     position = close.end;
+//                     in_span = 0; // && set !in_span
+//                     continue; // next line
+//                 }
+//             }
+//         }
+//     }
+// }
+
+
+
+// void walk_explicit_express(Buffer *b) {
+//     // PROBLEM: A rogue intiiator without a killer changes the color
+//     // of every char from there on. This is intended & ideal, but
+//     // when the initiator is removed, or a killer is added, the text
+//     // that was previously colored is no longer a part of the multi-
+//     // line expression, and so each of their colors should be set to
+//     // 0 and their lines should be flagged for refresh & highlight.
+//     // Deciding when to reset a char's color & when to label it as an
+//     // active component of the highlight is the trick & intention here
+//     //
+//     // PROBLEM 2: A initiator that does not differ from the kill
+//     // sequence cannot find a kill sequence; it will be all init
+//     // SOLUTION: instead of searching for all inits & all kills,
+//     // walk the content until an init is found, start a span, look
+//     // for the kill (ignoring inits). Then, mark it & close the span.
+//     SyntaxDemands *open_demands = GLOBAL_MULTILINE_PAIRS->ix;
+//     SyntaxDemands *close_demands = GLOBAL_MULTILINE_PAIRS->kx;
+//     CharIndex open;
+//     CharIndex close;
+//     short color;
+//     int in_span;
+//     int no_exps;
+//     int active_exp;
+
+//     // for (int ex = 0; ex < (int)N_GLOBAL_MULTILINE_DEMAND_PAIRS; ex++) {
+//     int n_exps = (int)N_GLOBAL_MULTILINE_DEMAND_PAIRS;
+//     color = open_demands[ex].color_code;
+//     in_span = 0;
+
+//     for (int l = 0; l < b->n_lines; l++) {
+//         Line *line = &b->lines[l];
+//         int position = 0;
+
+//         while (1) {
+//             if (!in_span) {
+//                 // find the first opener matched by ANY expression
+//                 // for (int i_exp = 0; i_exp < n_exps; i_exp++) {
+
+//                 if (!regex_search(line->text, position,
+//                             &open_demands[ex].cmp_expression, &open)) {
+//                     // while not in span, if no match found, deactive from
+//                     // 'cursor' position to EOL, & if was active, flag for refresh
+//                     for (int c = position, eol = line->len; c < eol; c++) {
+//                         if (line->cells[c].is_active) { line->hlite_NOK = 1; }
+//                         line->cells[c].is_active = 0;
+//                     }
+//                     break; // next line (which resets cursor)
+//                     // with new for loop, should continue to next opener
+//                 } else {
+//                     // active_exp = ex; // active matched expression opener
+//                     // color = open_demands[ex].color_code;
+//                     in_span = 1; // in span, if a 1 is returned (w.open)
+//                     // before coloring match, deactivate (& flag) the
+//                     // chars unmatched from 'cursor' to open.start
+//                     for (int c = position, n = open.start; c < n; c++) {
+//                         if (line->cells[c].is_active) { line->hlite_NOK = 1; }
+//                         line->cells[c].is_active = 0;
+//                     }
+//                     // flag as highlighted the open expression match
+//                     for (int open_ix = open.start, end_ix = open.end;
+//                                 open_ix < end_ix; open_ix++) {
+//                         line->cells[open_ix].is_active = 1;
+//                         line->cells[open_ix].color = color;
+//                     }
+//                     // advance the 'cursor'
+//                     position = open.end;
+//                     continue;
+//                 }
+//             } else {
+//                 // while in span, if no match for the close expression
+//                 if (!regex_search(line->text, position,
+//                             &close_demands[ex].cmp_expression, &close)) {
+//                     // activate & color the whole line
+//                     for (int c = position; c < line->len; c++) {
+//                         line->cells[c].is_active = 1; // whole line, no closer, all highlight
+//                         line->cells[c].color = color;                            
+//                     }
+//                     // next line (which resets cursor)
+//                     break;
+//                 } else {
+//                     // if a match was found, activate from 'cursor' to close.end
+//                     for (int c = position, n = close.end; c < n; c++) {
+//                         line->cells[c].is_active = 1;
+//                         line->cells[c].color = color;
+//                     }
+//                     // advance the 'cursor'
+//                     position = close.end;
+//                     in_span = 0; // && set !in_span
+//                     continue; // next line
+//                 }
+//             }
+//         }
+//     }
+// }
+
+
+// void id_multiline_exp_chars(Buffer *b) {
+//     // PROBLEM: A rogue intiiator without a killer changes the color
+//     // of every char from there on. This is intended & ideal, but
+//     // when the initiator is removed, or a killer is added, the text
+//     // that was previously colored is no longer a part of the multi-
+//     // line expression, and so each of their colors should be set to
+//     // 0 and their lines should be flagged for refresh & highlight.
+//     // Deciding when to reset a char's color & when to label it as an
+//     // active component of the highlight is the trick & intention here
+//     //
+//     // add_astra+ added the new color ML_GRAY for distinction between
+//     //     single line comments or other gray text in the buffer
+//     short color = 0; // highlight ? highlight color : 0
+//     int terminate_ = 0; // is an active highlight ? 1 : 0
+//     for (int l = 0; l < b->n_lines; l++) {
+//         Line *line = &b->lines[l];
+//         for (int c = 0, n = line->len; c < n; c++) {
+//             Cell *cell = &line->cells[c];
+//             int was_active = cell->is_active;
+
+//             // only one of three can be satisfied
+//             // for a given character
+//             // first priority is initiators, then
+//             // terminators, then color only gets
+//             // reset *after* the terminator is not
+//             // detected anymore so it gets colored
+//             if (cell->mx_line_initr) {
+//                 color = cell->color;
+//                 cell->is_active = 1;
+//                 terminate_ = 0;
+//             } else if (cell->mx_line_killr) {
+//                 terminate_ = 1; // throw the signal
+//             } else if (terminate_) {
+//                 color = 0; // reset
+//                 terminate_ = 0; // no term, no init
+//             }
+
+//             if (color) {
+//                 cell->color = color; // highlight it, and
+//                 cell->is_active = 1; // don't erase its highlight
+//             }
+//             if (!color) { // if not in an active highlight, show that
+//                 cell->is_active = 0; // but don't set/change its color
+//                 // if the char was an active highlight, but the
+//                 // highlight is currently *inactive*, then refresh
+//                 // that line. but if not, it had no changes, and
+//                 // refreshing means every single line gets refreshed
+//                 if (was_active) { line->hlite_NOK = 1; }
+//             }
+//         }
+//     }
+// }
+
+
+// void regex_find_inits(Cell *cells, const char *text, int len,
+//             const regex_t *regxx, int code) {
+//     int pos = 0;
+//     regmatch_t pmatch[1]; // only one match for multi-line expressions
+//     while (regexec(regxx, text + pos, 1, pmatch, 0) == 0) {
+//         regoff_t start_offset = pmatch[0].rm_so;
+//         regoff_t end_offset = pmatch[0].rm_eo;
+//         for (regoff_t i = pos + start_offset; i < pos + end_offset; i++) {
+//             if (i >= len) { break; }
+//             cells[i].color = (short)code; // color to highlight match
+//             cells[i].mx_line_initr = 1; // mark the match as the start of a multi-line expression
+//         }
+//         pos += pmatch[0].rm_eo;
+//         if (pmatch[0].rm_so == pmatch[0].rm_eo) { break; }
+//     }
+// }
+
+
+// void regex_find_kills(Cell *cells, const char *text, int len,
+//             const regex_t *regxx) {
+//     int pos = 0;
+//     regmatch_t pmatch[1];
+//     while (regexec(regxx, text + pos, 1, pmatch, 0) == 0) {
+//         regoff_t start_offset = pmatch[0].rm_so;
+//         regoff_t end_offset = pmatch[0].rm_eo;
+//         for (regoff_t i = pos + start_offset; i < pos + end_offset; i++) {
+//             if (i >= len) { break; }
+//             cells[i].mx_line_killr = 1; // mark as the multi-line expression's terminator
+//         }
+//         pos += pmatch[0].rm_eo;
+//         if (pmatch[0].rm_so == pmatch[0].rm_eo) { break; }
+//     }
+// }
 
 
 void refresh_expression(Line *l) {
@@ -281,13 +550,13 @@ void refresh_expression(Line *l) {
     if (!l->hlite_NOK) { return; }
     // before computing, zero out the line's highlight array
     for (int i = 0; i < l->len; i++) {
-        // if (l->cells[i].color == ML_GRAY) { continue; }
         if (l->cells[i].is_active) { continue; }
         l->cells[i].color = 0;
     }
     for (unsigned int e = 0; e < N_GLOBAL_DEMANDS; e++) {
         if (!GLOBAL_DEMANDS[e].compiled) {
-            print_inf(edit_src, "skipping uncompiled regex expression"); continue;
+            // print_inf(edit_src, "skipping uncompiled regex expression"); continue;
+            continue;
         }
         regex_color(l->cells, l->text, l->len,
                     &GLOBAL_DEMANDS[e].cmp_expression, GLOBAL_DEMANDS[e].color_code);

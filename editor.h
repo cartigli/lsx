@@ -47,4 +47,22 @@ void regex_find_inits(Cell *cells, const char *text, int len,
 void regex_find_kills(Cell *cells, const char *text, int len,
             const regex_t *regxx);
 
+typedef struct {
+    int start;
+    int end;
+} CharIndex;
+
+typedef struct {
+    CharIndex init;
+    CharIndex kill;
+    // int init;
+    // int kill;
+} CharIndices;
+
+void walk_explicit_express(Buffer *b);
+
+// CharIndex *regex_search(const char *text, int len, const regex_t *regxx);
+int regex_search(const char *text, int pos, const regex_t *regxx, CharIndex *index);
+
+
 #endif
