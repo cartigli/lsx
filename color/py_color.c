@@ -1,49 +1,30 @@
 #include "c_color.h"
 
 
-SyntaxDemands PY_3DBQT_INITEXP[] = {
-    {
-        .expression = "\"\"\"",
-        .color_code = YELLOW,
-        .type = NUMERICALS,
-    },
-};
-
-SyntaxDemands PY_3DBQT_KILLEXP[] = {
-    {
-        .expression = "\"\"\"",
-        .color_code = YELLOW,
-        .type = NUMERICALS,
-    },
-};
-
-
-SyntaxDemands PY_3SQT_INITEXP[] = {
-    {
-        .expression = "\'\'\'",
-        .color_code = YELLOW,
-        .type = NUMERICALS,
-    },
-};
-
-SyntaxDemands PY_3SQT_KILLEXP[] = {
-    {
-        .expression = "\'\'\'",
-        .color_code = YELLOW,
-        .type = NUMERICALS,
-    },
-};
-
 SyntaxTwins PY_TWINTERMS[] = {
-    // 'triple double quoted strings'
     {
-        .ix = PY_3DBQT_INITEXP,
-        .kx = PY_3DBQT_KILLEXP,
+        .ix = {
+            .expression = "\"\"\"",
+            .color_code = YELLOW,
+            .type = NUMERICALS,
+        },
+        .kx = {
+            .expression = "\"\"\"",
+            .color_code = YELLOW,
+            .type = NUMERICALS,
+        },
     },
-    // 'triple single quoted strings'
     {
-        .ix = PY_3SQT_INITEXP,
-        .kx = PY_3SQT_KILLEXP,
+        .ix = {
+            .expression = "\'\'\'",
+            .color_code = YELLOW,
+            .type = NUMERICALS,
+        },
+        .kx = {
+            .expression = "\'\'\'",
+            .color_code = YELLOW,
+            .type = NUMERICALS,
+        },
     },
 };
 
@@ -173,10 +154,10 @@ SyntaxDemands PY_DEMANDS[] = {
 
 const char *PY_INDENTABLES = { "{[(:" };
 const char *PY_DEDENTABLES = { "}])" };
-int PY_INDENT_LENGTH = 4;
+int PY_INDENT_LEN = 4;
 
 
-const unsigned int PY_N_DEMANDS = sizeof(PY_DEMANDS) / sizeof(PY_DEMANDS[0]);
+const unsigned int N_PY_DEMANDS = sizeof(PY_DEMANDS) / sizeof(PY_DEMANDS[0]);
 
 const unsigned int N_PY_TWINTERMS =
             sizeof(PY_TWINTERMS) / sizeof(PY_TWINTERMS[0]);

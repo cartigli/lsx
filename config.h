@@ -3,7 +3,6 @@
 
 #include "types.h"
 
-
 typedef enum {
     mutable_df,
     hide_size_df,
@@ -17,6 +16,5 @@ typedef enum {
 extern const char *DEFAULTS[DF_COUNT];
 
 void initialize_config(Config *config);
-
 
 #endif

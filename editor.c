@@ -1,9 +1,9 @@
 #include <dirent.h>
+#include <ncurses.h>
+#include <regex.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ncurses.h>
-#include <regex.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -12,29 +12,31 @@
 #include "error.h"
 #include "highlight.h"
 
-
-static inline int indent_col(Cursor *curs) {
+static inline int indent_col(Cursor *curs)
+{
     return curs->indent_l * GLOBAL_INDENT_LEN;
 }
 
-
-char *ctrl_z_str = "ctrl + z pressed"; /* 16 chars + 4 digits + 4 digits + : 1 digit = 25 */
-char *default_str = "exit: ctrl + x";
+char *ctrl_z_str    = "ctrl + z pressed";
+char *default_str   = "exit: ctrl + x";
 char *immutable_str = "exit: x";
-char *wo_failure = "writeout failed";
-char *wo_success = "wrote out buffer";
-char *no_changes = "no modifications";
+char *wo_failure    = "writeout failed";
+char *wo_success    = "wroteout buffer";
+char *no_changes    = "nothing to save";
 
-
-void alter_file(Buffer *b, RunTime *rt, Cursor *curs,
-                const char *path, int mutable) {
+void alter_file(Buffer *b, RunTime *rt, Cursor *curs, const char *path,
+    int mutable)
+{
     // runs a window for viewing, and potentially editing, a file
 
-    // make a pad at the minimum the size of the window, 
+    // make a pad at the minimum the size of the window,
     // so smaller files still fill the pad amd terminal
-    rt->pad = newpad(b->n_lines + 1, rt->pad_w);
+    int y           = getmaxy(stdscr);
+    int init_pad_sz = b->n_lines + 1 > y ? b->n_lines + 1 : y;
+    rt->pad         = newpad(init_pad_sz, rt->pad_w);
+
     if (rt->pad == NULL) {
-        print_err(edit_src, "failed to initiate new pad for alter file", 5);
+        print_err(edit_src, "failed to initiate new pad", 5);
         return;
     }
 
@@ -43,47 +45,53 @@ void alter_file(Buffer *b, RunTime *rt, Cursor *curs,
     char mbuff[MAX_STTM_LEN];
     // set the exit command accordingly
     char *default_msg = (mutable) ? default_str : immutable_str;
-    
-    // read the buffer into the pad, line by line
-    int row = 0;
-    for (int i = 0; i < b->n_lines; i++) {
-        mvwprintw(rt->pad, row, 0, "%s", b->lines[i].text);
-        row++;
-    }
+
+    // run once initially with the dirty flag
+    walk_explicit_express(b, 1);
 
     clear();
     refresh();
     keypad(rt->pad, TRUE);
+
     while (1) {
+        // grow pad if needed before redrawing
+        // without it, lines beyond the original pad size
+        // get corrupted & are not shown when traversed to
+        // if writeout & reopen, they appear because the
+        // pad size was originally made the size of b->n_lines + 1
+        grow_pad(b, rt);
+
         // status message: cursor's message if exists else default
         char *status_msg = curs->sprint ? curs->smsg : default_msg;
         // print the status along with the cursor's line : all lines
-        snprintf(mbuff, sizeof(mbuff), "%s %d:%d",
-                    status_msg, curs->row + 1, b->n_lines);
-
+        snprintf(mbuff, sizeof(mbuff), "%s %d:%d", status_msg, curs->row + 1,
+            b->n_lines);
         // move to where the longest status message could start
         // if the new message is shorter, dead text should be cleared
         move(rt->screen_h - 1, MAX_STTM_LEN);
         clrtoeol();
-
         // print the message from the screen width - message length, if
         // the screen width is greater than the message length, else 0
         int mlen = (int)strlen(mbuff);
-        int col = rt->screen_w > mlen ? rt->screen_w - mlen : 0;
+        int col  = rt->screen_w > mlen ? rt->screen_w - mlen : 0;
         mvprintw(rt->screen_h - 1, col, "%s", mbuff);
-        if (curs->sprint) { curs->sprint = 0; }
+        if (curs->sprint) {
+            curs->sprint--;
+        }
 
         // stage changes
         wnoutrefresh(stdscr);
         if (!rt->pad) {
-            print_err(edit_src, "NULL rt->pad inside the editor's loop", 5);
+            print_err(edit_src, "NULL rt->pad", 5);
             return;
         }
         werase(rt->pad);
 
-        // print out the modified buffer, line by line
-        for (int i = 0; i < b->n_lines; i++) {
-            mvwprintw(rt->pad, i, 0, "%s", b->lines[i].text);
+        int i_eo = b->n_lines > rt->screen_h
+            ? rt->pad_row + rt->screen_h - STATUS_RROWS + 1
+            : b->n_lines;
+        for (int i_so = rt->pad_row; i_so < i_eo; i_so++) {
+            mvwprintw(rt->pad, i_so, 0, "%s", b->lines[i_so].text);
         }
 
         // clamp the pad to the cursor's position
@@ -101,28 +109,29 @@ void alter_file(Buffer *b, RunTime *rt, Cursor *curs,
             rt->pad_col = curs->col - (rt->screen_w) + 1;
         }
 
+        // highlight multi-line expressions (whole buffer scan & color)
+        walk_explicit_express(b, b->dirty);
 
-        // identify and highlight multi-line expressions
-        // check_multiline_exps(b);
-        walk_explicit_express(b);
+        // highlighting text visible in the terminal
+        // window (by each line's regex result)
+        if (i_eo > b->n_lines) {
+            i_eo = b->n_lines;
+        }
 
-        // highlighting text visible in the terminal window (by line)
-        int ix = rt->pad_row;
-        int xx = rt->pad_row + rt->screen_h - STATUS_RROWS;
-        if (xx > b->n_lines) { xx = b->n_lines; }
-
-        // for each visible lines:
-        for (int dx = ix; dx < xx; dx++) {
-            Line *line = &b->lines[dx];
-            // checks hlite_NOK, i.e., was edited/needs highlighting?
+        for (int i_so = rt->pad_row; i_so < i_eo; i_so++) {
+            Line *line = &b->lines[i_so];
+            // checks hlite_NOK, i.e., answers:
+            // 'was altered/needs highlighting?'
             refresh_expression(line);
             // for each char in the line, apply its color
             for (int i = 0; i < line->len; i++) {
                 // if the char's color code is 0: skip
-                if (!line->cells[i].color) { continue; }
+                if (!line->cells[i].color) {
+                    continue;
+                }
                 // else, apply that char's color code
-                mvwchgat(rt->pad, dx, i, 1, A_NORMAL,
-                            line->cells[i].color, NULL);
+                mvwchgat(rt->pad, i_so, i, 1, A_NORMAL, line->cells[i].color,
+                    NULL);
             }
         }
 
@@ -136,73 +145,268 @@ void alter_file(Buffer *b, RunTime *rt, Cursor *curs,
         // digest any keypresses
         ch = wgetch(rt->pad);
         action_key(b, rt, curs, ch, path, mutable);
-        if (curs->action) { curs->action = 0; break; }
+        if (curs->action) {
+            curs->action = 0;
+            break;
+        }
     }
 
     delwin(rt->pad);
     return;
 }
 
+void action_key(Buffer *b, RunTime *rt, Cursor *curs, int ch, const char *path,
+    int mutable)
+{
+    // keystroke digest; movement, chars entered, doc altered, etc.,
 
-void walk_explicit_express(Buffer *b) {
-    // PROBLEM: A rogue intiiator without a killer changes the color
-    // of every char from there on. This is intended & ideal, but
-    // when the initiator is removed, or a killer is added, the text
-    // that was previously colored is no longer a part of the multi-
-    // line expression, and so each of their colors should be set to
-    // 0 and their lines should be flagged for refresh & highlight.
-    // Deciding when to reset a char's color & when to label it as an
-    // active component of the highlight is the trick & intention here
-    //
-    // PROBLEM 2: A initiator that does not differ from the kill
-    // sequence cannot find a kill sequence; it will be all init
-    // SOLUTION: instead of searching for all inits & all kills,
-    // walk the content until an init is found, start a span, look
-    // for the kill (ignoring inits). Then, mark it & close the span.
+    // always digest key movement
+    if (ch == KEY_LEFT) {
+        if (curs->col > 0) {
+            curs->col--;
+        }
+        // if the cursor's at col 0, move to EOL of previous line
+        else if (curs->row > 0) {
+            curs->row--;
+            curs->col = b->lines[curs->row].len;
+        } // if at line 0, do nothing
+    } else if (ch == KEY_RIGHT) {
+        if (curs->col < b->lines[curs->row].len) {
+            curs->col++;
+            // if the cursor is on the last col of a line,
+            // (and its not the last line)
+            // move to start of the next line
+            // ([index] < [count]) || index + 1
+        } else if (curs->row + 1 < b->n_lines) {
+            curs->row++;
+            curs->col = 0;
+        }
+    } else if (ch == KEY_UP) {
+        // if on first line, move cursor to col = 0
+        if (curs->row == 0) {
+            curs->col = 0;
+        } else {
+            curs->row--;
+            // if the new line's length is less than the cursor's col,
+            // then the cursor's column = the new lines' length
+            if (curs->col > b->lines[curs->row].len) {
+                curs->col = b->lines[curs->row].len;
+            }
+        }
+    } else if (ch == KEY_DOWN) {
+        // if on the last line, move cursor to EOL
+        // ([index] == [count]) || count - 1
+        if (curs->row == b->n_lines - 1) {
+            // [index] = [count] || count - 1
+            curs->col = b->lines[b->n_lines - 1].len;
+        } else {
+            // else, move down a row & bind cursor col to new line length
+            curs->row++;
+            if (curs->col > b->lines[curs->row].len) {
+                curs->col = b->lines[curs->row].len;
+            }
+        }
 
-    // SyntaxDemands *open_demands = GLOBAL_MULTILINE_PAIRS->ix;
-    // SyntaxDemands *close_demands = GLOBAL_MULTILINE_PAIRS->kx;
+        // from here on, if the state is not mutable
+        // do not go past this block & warn if tried
+    } else if (!mutable) {
+        if (ch == 'x') {
+            curs->action = 1;
+        } else {
+            curs->sprint = 1;
+            curs->smsg   = no_changes;
+        }
+        return;
 
-    // SyntaxTwins *twin_demands = &GLOBAL_MULTILINE_PAIRS;
+        // printable ASCII
+    } else if (ch >= 32 && ch < 127) {
+        // 'smart' indent
+        // if that given char (& buffer context) is valid case for dedenting
+        if (dedentable(b, curs, ch)) {
+            // if the indent level is corrupted
+            if (curs->col != indent_col(curs)) {
+                if (repair_indent(b, curs)) {
+                    curs->action = 1;
+                }
+            } // repair it, and dedent
+            curs->col = indent_col(curs);
+            curs->indent_l--;
+            if (curs->indent_l < 0) {
+                curs->indent_l = 0;
+            }
+            for (int a = 0; a < GLOBAL_INDENT_LEN; a++) {
+                buffer_delete_char(b, curs->row, curs->col - 1);
+                curs->col--;
+            }
+            buffer_insert_char(b, curs->row, curs->col, (char)ch);
+            curs->col++;
 
-    // CharIndex close;
-    int in_span = 0;
+        } else { // 'normal' case; insert char to buff & move cursor
+            buffer_insert_char(b, curs->row, curs->col, (char)ch);
+            curs->col++;
+        }
+        // if (b->lines[curs->row].len > rt->max_line) {
+        if (rt->max_line < b->lines[curs->row].len) {
+            rt->max_line = b->lines[curs->row].len;
+        }
+
+        // utility bindings
+    } else if (ch == 27) { // ESC
+        curs->action = 1;
+        return;
+
+        // resized window
+    } else if (ch == KEY_RESIZE) {
+        getmaxyx(stdscr, rt->screen_h, rt->screen_w);
+        grow_pad(b, rt);
+        if (rt->pad == NULL) {
+            print_err(edit_src, "NULL pad after RESIZE digest", 4);
+            return;
+        }
+        clear();
+        refresh();
+
+    } else if (ch == '\n' || ch == KEY_ENTER) {
+        // 'smart' indent
+        // if the char underneath the cursor when this enter was
+        // executed matches criteria for an indent, then indent
+        if (indentable(b, curs)) {
+            curs->indent_l++;
+            buffer_split_line(b, curs->row, curs->col);
+            curs->row++;
+            curs->col = 0;
+
+            for (int a = 0; a < indent_col(curs); a++) {
+                buffer_insert_char(b, curs->row, curs->col, (char)32);
+            }
+            curs->col += indent_col(curs);
+
+        } else { // clear out empty lines
+            if (all_clear(&b->lines[curs->row])) {
+                for (int i = 0; i < indent_col(curs); i++) {
+                    buffer_delete_char(b, curs->row, curs->col - 1);
+                    curs->col--;
+                }
+            }
+            // make a new line at the current indent level
+            buffer_split_line(b, curs->row, curs->col);
+            curs->row++;
+            curs->col = 0;
+            if (curs->indent_l) {
+                for (int a = 0; a < indent_col(curs); a++) {
+                    buffer_insert_char(b, curs->row, curs->col, (char)32);
+                }
+                curs->col = indent_col(curs);
+            }
+        }
+
+    } else if (ch == KEY_BACKSPACE || ch == 127) {
+        if (curs->col > 0) {
+            buffer_delete_char(b, curs->row, curs->col - 1);
+            curs->col--;
+            // if the cursor's at col = 0, deleting a char joins
+            // the current line with the previous
+        } else if (curs->row > 0) {
+            int prev_len = b->lines[curs->row - 1].len;
+            buffer_join_lines(b, curs->row);
+            curs->row--;
+            curs->col = prev_len; // land cursor at join
+        }
+
+        // TAB
+    } else if (ch == '\t') {
+        for (int i = 0; i < GLOBAL_INDENT_LEN; i++) {
+            buffer_insert_char(b, curs->row, curs->col, (char)32);
+            curs->col++;
+        }
+
+        // CTRL keys
+    } else if (ch >= 1 && ch <= 26) {
+        if (ch == 4) {     // CTRL D
+            if (mutable) { // impossible...
+                buffer_duplicate_line(b, curs->row);
+                // move cursor to EOL of new line
+                curs->row++;
+            } else {
+                curs->sprint = 1;
+                curs->smsg   = no_changes;
+            }
+        } else if (ch == 15) { // CTRL O
+            if (mutable) {     // ...but defensive
+                curs->sprint = 1;
+                if (!b->dirty) {
+                    curs->smsg = no_changes;
+                } else {
+                    clr_empty_lines(b, curs->row);
+                    int rc = buffer_writeout(b, path);
+                    if (rc) {
+                        curs->smsg = wo_failure;
+                    } else {
+                        curs->smsg = wo_success;
+                    }
+                }
+            } else {
+                curs->sprint = 1;
+                curs->smsg   = no_changes;
+                // do nothing & warn
+                return;
+            }
+        } else if (ch == 24) { // CTRL X
+            curs->action = 1;
+        } else if (ch == 26) { // CTRL Z
+            curs->sprint = 1;
+            curs->smsg   = ctrl_z_str;
+        }
+    }
+}
+
+void walk_explicit_express(Buffer *b, int dirty)
+{
+    // walks the entire buffer for intiators of multi-line expressions
+    // when one is encountered, start a span, and highlight until the
+    // opening expressions' closer is found
+
+    if (!dirty) {
+        return;
+    }
+
+    int n_exps     = (int)N_GLOBAL_MULTILINE_DEMAND_PAIRS;
     int active_exp = -1;
-
-    int n_exps = (int)N_GLOBAL_MULTILINE_DEMAND_PAIRS;
-    in_span = 0;
+    int in_span    = 0;
 
     for (int l = 0; l < b->n_lines; l++) {
         Line *line = &b->lines[l];
-        int len = line->len;
-        int cursor = 0; // reset on every line
+        int len    = line->len;
+        int cursor = 0;
 
         while (1) {
-            if (cursor >= len) { break; }
+            if (cursor >= len) {
+                break;
+            }
 
             if (!in_span) {
+                // while not in a span, look for initiators on each line
+
                 int valid_initiator = -1;
-                CharIndex initiator = { .start = len, .end = len, };
+                CharIndex initiator = {.start = len, .end = len};
 
                 // find the first match of any expression initiator
                 for (int exp = 0; exp < n_exps; exp++) {
                     // skip uncompiled regex expressions
-                    if (!GLOBAL_MULTILINE_PAIRS[exp].ix->compiled) { continue; }
+                    if (!GLOBAL_MULTILINE_PAIRS[exp].ix.compiled) {
+                        continue;
+                    }
                     // init the competitor for valid comparisons
-                    CharIndex competitor = { .start = len, .end = len };
+                    CharIndex competitor = {.start = len, .end = len};
                     if (regex_search(line->text, cursor,
-                                &GLOBAL_MULTILINE_PAIRS[exp].ix->cmp_expression, &competitor)) {
-
-                        // the match competitor found supercedes if:
-                        //     - the competitor starts before the prior
-                        // -- OR --
-                        //     - the competitor & prior start at the same
-                        //       char/column && **the competitor is longer**
-                        // i.e., <"> gets beaten out by <"""> if matched by expressions
+                            &GLOBAL_MULTILINE_PAIRS[exp].ix.cmp_expression,
+                            &competitor)) {
+                        // if two expressions match the same char, the longer
+                        // expression wins, i.e., <"> is beaten out by <""">
                         if (initiator.start > competitor.start) { // ||
-                                    // (initiator.start == competitor.start &&
-                                    // initiator.end < competitor.end)) {
-                            initiator = competitor;
+                            // (initiator.start == competitor.start &&
+                            // initiator.end < competitor.end)) {
+                            initiator       = competitor;
                             valid_initiator = exp;
                         }
                     }
@@ -212,57 +416,73 @@ void walk_explicit_express(Buffer *b) {
                 // i.e., if the was never initiator initiated
                 if (valid_initiator == -1) {
                     for (int c = cursor, n = len; c < n; c++) {
-                        if (line->cells[c].is_active) { line->hlite_NOK = 1; }
+                        if (line->cells[c].is_active) {
+                            line->hlite_NOK = 1;
+                        }
                         line->cells[c].is_active = 0;
                     }
                     // if no initiator found, the  current line's while loop
                     // requires a hard exit to avoid an infinite loop
                     break; // << load bearing break!!
-
-                // else, process the matched initiator
-                } else {
-                    if (initiator.start == initiator.end) { continue; }
-
-                    in_span = 1; // set the state to in_span
-                    // ensure non of the previously unmatched chars are highlighted
-                    active_exp = valid_initiator;
-                    for (int c = cursor, n = initiator.start; c < n; c++) {
-                        if (line->cells[c].is_active) { line->hlite_NOK = 1; }
-                        line->cells[c].is_active = 0;
-                    }
-                    // highlight the opener itself (inclusive highlight)
-                    for (int h = initiator.start, n = initiator.end; h < n; h++) {
-                        line->cells[h].color = GLOBAL_MULTILINE_PAIRS[valid_initiator].ix->color_code;
-                        line->cells[h].is_active = 1;
-                    }
-                    // advance the cursor & look for it's closer
-                    cursor = initiator.end;
                 }
+
+                // if matched, process the initiator
+                if (initiator.start == initiator.end) {
+                    continue;
+                }
+
+                in_span = 1; // set the state to in_span
+                // ensure non of the previously unmatched chars are highlighted
+                active_exp = valid_initiator;
+                for (int c = cursor, n = initiator.start; c < n; c++) {
+                    if (line->cells[c].is_active) {
+                        line->hlite_NOK = 1;
+                    }
+                    line->cells[c].is_active = 0;
+                }
+                // highlight the opener itself (inclusive highlight)
+                for (int h = initiator.start, n = initiator.end; h < n; h++) {
+                    line->cells[h].color =
+                        GLOBAL_MULTILINE_PAIRS[valid_initiator].ix.color_code;
+                    line->cells[h].is_active = 1;
+                }
+                // advance the cursor & look for it's closer
+                cursor = initiator.end;
 
             } else { // else, if in_span: the only job is to find the closer.
-                // if its not found, activate & color the whole line before moving to next
-                // line. if it is found, color from cursor to the close (inclusive) & fin.
+                // if its not found, activate & color the whole line before
+                // moving to next line. if it is found, color from cursor to the
+                // close (inclusive) & advance cursor.
                 if (active_exp == -1) {
-                    print_err(edit_src, "failed to track active expression for closing", 5);
+                    print_err(edit_src, "missing terminator", 5);
                     return;
                 }
-                if (!GLOBAL_MULTILINE_PAIRS[active_exp].kx->compiled) { continue; }
-                CharIndex close = { .start = len, .end = len };
+                if (!GLOBAL_MULTILINE_PAIRS[active_exp].kx.compiled) {
+                    continue;
+                }
+                CharIndex close = {.start = len, .end = len};
                 if (!regex_search(line->text, cursor,
-                            &GLOBAL_MULTILINE_PAIRS[active_exp].kx->cmp_expression, &close)) {
+                        &GLOBAL_MULTILINE_PAIRS[active_exp].kx.cmp_expression,
+                        &close)) {
                     // activate & color the whole line
                     for (int c = cursor, n = len; c < n; c++) {
-                        line->cells[c].color = GLOBAL_MULTILINE_PAIRS[active_exp].ix->color_code;
+                        line->cells[c].color =
+                            GLOBAL_MULTILINE_PAIRS[active_exp].ix.color_code;
                         line->cells[c].is_active = 1;
                     }
                     break;
                 } else {
-                    if (close.start == close.end) { continue; }
+                    // color from cursor to match end,
+                    // advance cursor, & close span
+                    if (close.start == close.end) {
+                        continue;
+                    }
                     for (int c = cursor, n = close.end; c < n; c++) {
-                        line->cells[c].color = GLOBAL_MULTILINE_PAIRS[active_exp].ix->color_code;
+                        line->cells[c].color =
+                            GLOBAL_MULTILINE_PAIRS[active_exp].ix.color_code;
                         line->cells[c].is_active = 1;
                     }
-                    cursor = close.end;
+                    cursor  = close.end;
                     in_span = 0;
                 }
             }
@@ -270,17 +490,22 @@ void walk_explicit_express(Buffer *b) {
     }
 }
 
+int regex_search(const char *text, int pos, const regex_t *regxx,
+    CharIndex *index)
+{
+    // searches the passed text from the pos[ition] for the given expression
 
-int regex_search(const char *text, int pos, const regex_t *regxx, CharIndex *index) {
     regmatch_t pmatch[1];
     while (regexec(regxx, text + pos, 1, pmatch, 0) == 0) {
         regoff_t start_offset = pmatch[0].rm_so;
         regoff_t end_offset   = pmatch[0].rm_eo;
 
         index->start = pos + start_offset;
-        index->end = pos + end_offset;
+        index->end   = pos + end_offset;
         // return only matches with width > 0
-        if (index->start < index->end) { return 1; }
+        if (index->start < index->end) {
+            return 1;
+        }
 
         pos += pmatch[0].rm_eo;
         if (pmatch[0].rm_so == pmatch[0].rm_eo) {
@@ -290,284 +515,36 @@ int regex_search(const char *text, int pos, const regex_t *regxx, CharIndex *ind
     return 0;
 }
 
-
-
-
-
-
-//                 // find the first opener matched by ANY expression
-//                 // for (int i_exp = 0; i_exp < n_exps; i_exp++) {
-
-//                 if (!regex_search(line->text, position,
-//                             &open_demands[ex].cmp_expression, &open)) {
-//                     // while not in span, if no match found, deactive from
-//                     // 'cursor' position to EOL, & if was active, flag for refresh
-//                     for (int c = position, eol = line->len; c < eol; c++) {
-//                         if (line->cells[c].is_active) { line->hlite_NOK = 1; }
-//                         line->cells[c].is_active = 0;
-//                     }
-//                     break; // next line (which resets cursor)
-//                     // with new for loop, should continue to next opener
-//                 } else {
-//                     // active_exp = ex; // active matched expression opener
-//                     // color = open_demands[ex].color_code;
-//                     in_span = 1; // in span, if a 1 is returned (w.open)
-//                     // before coloring match, deactivate (& flag) the
-//                     // chars unmatched from 'cursor' to open.start
-//                     for (int c = position, n = open.start; c < n; c++) {
-//                         if (line->cells[c].is_active) { line->hlite_NOK = 1; }
-//                         line->cells[c].is_active = 0;
-//                     }
-//                     // flag as highlighted the open expression match
-//                     for (int open_ix = open.start, end_ix = open.end;
-//                                 open_ix < end_ix; open_ix++) {
-//                         line->cells[open_ix].is_active = 1;
-//                         line->cells[open_ix].color = color;
-//                     }
-//                     // advance the 'cursor'
-//                     position = open.end;
-//                     continue;
-//                 }
-//             } else {
-//                 // while in span, if no match for the close expression
-//                 if (!regex_search(line->text, position,
-//                             &close_demands[ex].cmp_expression, &close)) {
-//                     // activate & color the whole line
-//                     for (int c = position; c < line->len; c++) {
-//                         line->cells[c].is_active = 1; // whole line, no closer, all highlight
-//                         line->cells[c].color = color;                            
-//                     }
-//                     // next line (which resets cursor)
-//                     break;
-//                 } else {
-//                     // if a match was found, activate from 'cursor' to close.end
-//                     for (int c = position, n = close.end; c < n; c++) {
-//                         line->cells[c].is_active = 1;
-//                         line->cells[c].color = color;
-//                     }
-//                     // advance the 'cursor'
-//                     position = close.end;
-//                     in_span = 0; // && set !in_span
-//                     continue; // next line
-//                 }
-//             }
-//         }
-//     }
-// }
-
-
-
-// void walk_explicit_express(Buffer *b) {
-//     // PROBLEM: A rogue intiiator without a killer changes the color
-//     // of every char from there on. This is intended & ideal, but
-//     // when the initiator is removed, or a killer is added, the text
-//     // that was previously colored is no longer a part of the multi-
-//     // line expression, and so each of their colors should be set to
-//     // 0 and their lines should be flagged for refresh & highlight.
-//     // Deciding when to reset a char's color & when to label it as an
-//     // active component of the highlight is the trick & intention here
-//     //
-//     // PROBLEM 2: A initiator that does not differ from the kill
-//     // sequence cannot find a kill sequence; it will be all init
-//     // SOLUTION: instead of searching for all inits & all kills,
-//     // walk the content until an init is found, start a span, look
-//     // for the kill (ignoring inits). Then, mark it & close the span.
-//     SyntaxDemands *open_demands = GLOBAL_MULTILINE_PAIRS->ix;
-//     SyntaxDemands *close_demands = GLOBAL_MULTILINE_PAIRS->kx;
-//     CharIndex open;
-//     CharIndex close;
-//     short color;
-//     int in_span;
-//     int no_exps;
-//     int active_exp;
-
-//     // for (int ex = 0; ex < (int)N_GLOBAL_MULTILINE_DEMAND_PAIRS; ex++) {
-//     int n_exps = (int)N_GLOBAL_MULTILINE_DEMAND_PAIRS;
-//     color = open_demands[ex].color_code;
-//     in_span = 0;
-
-//     for (int l = 0; l < b->n_lines; l++) {
-//         Line *line = &b->lines[l];
-//         int position = 0;
-
-//         while (1) {
-//             if (!in_span) {
-//                 // find the first opener matched by ANY expression
-//                 // for (int i_exp = 0; i_exp < n_exps; i_exp++) {
-
-//                 if (!regex_search(line->text, position,
-//                             &open_demands[ex].cmp_expression, &open)) {
-//                     // while not in span, if no match found, deactive from
-//                     // 'cursor' position to EOL, & if was active, flag for refresh
-//                     for (int c = position, eol = line->len; c < eol; c++) {
-//                         if (line->cells[c].is_active) { line->hlite_NOK = 1; }
-//                         line->cells[c].is_active = 0;
-//                     }
-//                     break; // next line (which resets cursor)
-//                     // with new for loop, should continue to next opener
-//                 } else {
-//                     // active_exp = ex; // active matched expression opener
-//                     // color = open_demands[ex].color_code;
-//                     in_span = 1; // in span, if a 1 is returned (w.open)
-//                     // before coloring match, deactivate (& flag) the
-//                     // chars unmatched from 'cursor' to open.start
-//                     for (int c = position, n = open.start; c < n; c++) {
-//                         if (line->cells[c].is_active) { line->hlite_NOK = 1; }
-//                         line->cells[c].is_active = 0;
-//                     }
-//                     // flag as highlighted the open expression match
-//                     for (int open_ix = open.start, end_ix = open.end;
-//                                 open_ix < end_ix; open_ix++) {
-//                         line->cells[open_ix].is_active = 1;
-//                         line->cells[open_ix].color = color;
-//                     }
-//                     // advance the 'cursor'
-//                     position = open.end;
-//                     continue;
-//                 }
-//             } else {
-//                 // while in span, if no match for the close expression
-//                 if (!regex_search(line->text, position,
-//                             &close_demands[ex].cmp_expression, &close)) {
-//                     // activate & color the whole line
-//                     for (int c = position; c < line->len; c++) {
-//                         line->cells[c].is_active = 1; // whole line, no closer, all highlight
-//                         line->cells[c].color = color;                            
-//                     }
-//                     // next line (which resets cursor)
-//                     break;
-//                 } else {
-//                     // if a match was found, activate from 'cursor' to close.end
-//                     for (int c = position, n = close.end; c < n; c++) {
-//                         line->cells[c].is_active = 1;
-//                         line->cells[c].color = color;
-//                     }
-//                     // advance the 'cursor'
-//                     position = close.end;
-//                     in_span = 0; // && set !in_span
-//                     continue; // next line
-//                 }
-//             }
-//         }
-//     }
-// }
-
-
-// void id_multiline_exp_chars(Buffer *b) {
-//     // PROBLEM: A rogue intiiator without a killer changes the color
-//     // of every char from there on. This is intended & ideal, but
-//     // when the initiator is removed, or a killer is added, the text
-//     // that was previously colored is no longer a part of the multi-
-//     // line expression, and so each of their colors should be set to
-//     // 0 and their lines should be flagged for refresh & highlight.
-//     // Deciding when to reset a char's color & when to label it as an
-//     // active component of the highlight is the trick & intention here
-//     //
-//     // add_astra+ added the new color ML_GRAY for distinction between
-//     //     single line comments or other gray text in the buffer
-//     short color = 0; // highlight ? highlight color : 0
-//     int terminate_ = 0; // is an active highlight ? 1 : 0
-//     for (int l = 0; l < b->n_lines; l++) {
-//         Line *line = &b->lines[l];
-//         for (int c = 0, n = line->len; c < n; c++) {
-//             Cell *cell = &line->cells[c];
-//             int was_active = cell->is_active;
-
-//             // only one of three can be satisfied
-//             // for a given character
-//             // first priority is initiators, then
-//             // terminators, then color only gets
-//             // reset *after* the terminator is not
-//             // detected anymore so it gets colored
-//             if (cell->mx_line_initr) {
-//                 color = cell->color;
-//                 cell->is_active = 1;
-//                 terminate_ = 0;
-//             } else if (cell->mx_line_killr) {
-//                 terminate_ = 1; // throw the signal
-//             } else if (terminate_) {
-//                 color = 0; // reset
-//                 terminate_ = 0; // no term, no init
-//             }
-
-//             if (color) {
-//                 cell->color = color; // highlight it, and
-//                 cell->is_active = 1; // don't erase its highlight
-//             }
-//             if (!color) { // if not in an active highlight, show that
-//                 cell->is_active = 0; // but don't set/change its color
-//                 // if the char was an active highlight, but the
-//                 // highlight is currently *inactive*, then refresh
-//                 // that line. but if not, it had no changes, and
-//                 // refreshing means every single line gets refreshed
-//                 if (was_active) { line->hlite_NOK = 1; }
-//             }
-//         }
-//     }
-// }
-
-
-// void regex_find_inits(Cell *cells, const char *text, int len,
-//             const regex_t *regxx, int code) {
-//     int pos = 0;
-//     regmatch_t pmatch[1]; // only one match for multi-line expressions
-//     while (regexec(regxx, text + pos, 1, pmatch, 0) == 0) {
-//         regoff_t start_offset = pmatch[0].rm_so;
-//         regoff_t end_offset = pmatch[0].rm_eo;
-//         for (regoff_t i = pos + start_offset; i < pos + end_offset; i++) {
-//             if (i >= len) { break; }
-//             cells[i].color = (short)code; // color to highlight match
-//             cells[i].mx_line_initr = 1; // mark the match as the start of a multi-line expression
-//         }
-//         pos += pmatch[0].rm_eo;
-//         if (pmatch[0].rm_so == pmatch[0].rm_eo) { break; }
-//     }
-// }
-
-
-// void regex_find_kills(Cell *cells, const char *text, int len,
-//             const regex_t *regxx) {
-//     int pos = 0;
-//     regmatch_t pmatch[1];
-//     while (regexec(regxx, text + pos, 1, pmatch, 0) == 0) {
-//         regoff_t start_offset = pmatch[0].rm_so;
-//         regoff_t end_offset = pmatch[0].rm_eo;
-//         for (regoff_t i = pos + start_offset; i < pos + end_offset; i++) {
-//             if (i >= len) { break; }
-//             cells[i].mx_line_killr = 1; // mark as the multi-line expression's terminator
-//         }
-//         pos += pmatch[0].rm_eo;
-//         if (pmatch[0].rm_so == pmatch[0].rm_eo) { break; }
-//     }
-// }
-
-
-void refresh_expression(Line *l) {
+void refresh_expression(Line *l)
+{
     // runs the compiled regex expressions against a given line
     // does nothing if the line's hlite_NOK is OK
 
     // if highlight is OK, do nothing
-    if (!l->hlite_NOK) { return; }
+    if (!l->hlite_NOK) {
+        return;
+    }
     // before computing, zero out the line's highlight array
     for (int i = 0; i < l->len; i++) {
-        if (l->cells[i].is_active) { continue; }
+        if (l->cells[i].is_active) {
+            continue;
+        }
         l->cells[i].color = 0;
     }
-    for (unsigned int e = 0; e < N_GLOBAL_DEMANDS; e++) {
+    // for (unsigned int e = N_GLOBAL_DEMANDS; e > 0; e--) {
+    for (unsigned int e = N_GLOBAL_DEMANDS; e-- > 0;) {
         if (!GLOBAL_DEMANDS[e].compiled) {
-            // print_inf(edit_src, "skipping uncompiled regex expression"); continue;
             continue;
         }
         regex_color(l->cells, l->text, l->len,
-                    &GLOBAL_DEMANDS[e].cmp_expression, GLOBAL_DEMANDS[e].color_code);
+            &GLOBAL_DEMANDS[e].cmp_expression, GLOBAL_DEMANDS[e].color_code);
     }
     l->hlite_NOK = 0;
 }
 
-
-// void regex_color(short *column_colors, const char *text,
-void regex_color(Cell *cells, const char *text, int len,
-                const regex_t *regxx, int code) {
+void regex_color(Cell *cells, const char *text, int len, const regex_t *regxx,
+    int code)
+{
     // computes a compiled regex expression against a string
     // records all matches
 
@@ -580,203 +557,48 @@ void regex_color(Cell *cells, const char *text, int len,
     // pmatch: capture groups made earlier, flags (0)
     // returns 0 if a match is found & -1 for error
     while (regexec(regxx, text + pos, 3, pmatch, 0) == 0) {
-        // if the max capture group has no matches, their rm_so & rm_eo will be -1;
-        // check if above 0 to find positive matches to the given expression
+        // if the max capture group has no matches, their rm_so & rm_eo will be
+        // -1; check if above 0 to find positive matches to the given expression
         regoff_t so = pmatch[2].rm_so >= 0 ? pmatch[2].rm_so : pmatch[0].rm_so;
         regoff_t eo = pmatch[2].rm_so >= 0 ? pmatch[2].rm_eo : pmatch[0].rm_eo;
-        // if the third capture group had no matches, use the first match (if present)
-        // if the third capture group had a match, use that match & discard the others
+        // if the third capture group had no matches, use the first match (if
+        // present) if the third capture group had a match, use that match &
+        // discard the others
 
-        // for every character from the starting position of the search/computed string
-        // plus the start of the match's offset to the end of the match's offset,
-        // set the column_color of that char's position to the given expression's color code
+        // for every character from the starting position of the search/computed
+        // string plus the start of the match's offset to the end of the match's
+        // offset, set the column_color of that char's position to the given
+        // expression's color code
         for (regoff_t i = pos + so, x = pos + eo; i < x; i++) {
-            if (i >= len) { break; }
+            if (i >= len) {
+                break;
+            }
             // if the char's current color is 0, replace it
-            if (!cells[i].color) { cells[i].color = (short)code; }
+            if (!cells[i].color) {
+                cells[i].color = (short)code;
+            }
         }
 
         // move the position past the entire match (if match)
         pos += pmatch[0].rm_eo;
         // if the regex expression mapped an empty string (i.e., ""), then
         // the match's starting offset will be equal to the ending offset
-        // if that is the case, advance past the match (above) & break out
-        if (pmatch[0].rm_eo == pmatch[0].rm_so) { break; }
-    }
-}
-
-
-void action_key(Buffer *b, RunTime *rt, Cursor *curs, int ch, const char *path, int mutable) {
-    /* only process if mutable, but do it initially */
-    if (mutable) {
-        if (ch >= 32 && ch < 127) { /* printable ASCII */
-            if (dedentable(b, curs, ch)) { /* 'smart' dedent */
-                /* if the indent level is corrupted */
-                if (curs->col != indent_col(curs)) {
-                    if (repair_indent(b, curs)) {
-                        curs->action = 1;
-                    }
-                } /* and then dedent per usual */
-                curs->col = indent_col(curs);
-                curs->indent_l--;
-                if (curs->indent_l < 0) { curs->indent_l = 0; }
-                for (int a = 0; a < GLOBAL_INDENT_LEN; a++) {
-                    buffer_delete_char(b, curs->row, curs->col - 1);
-                    curs->col--;
-                }
-                buffer_insert_char(b, curs->row, curs->col, (char)ch);
-                curs->col++;
-
-            } else { /* else, normal char */
-                buffer_insert_char(b, curs->row, curs->col, (char)ch);
-                curs->col++;
-            }
-        }
-    }
-
-    /* movement key digest -- always process */
-    if (ch == KEY_LEFT) {
-        /* if the cursors not at col 0: */
-        if (curs->col > 0) {
-            curs->col--;
-        /* if it is, and isn't at row 0: */
-        } else if (curs->row > 0) {
-            /* move to EOL of previous row */
-            curs->row--;
-            curs->col = b->lines[curs->row].len;
-        }
-    } else if (ch == KEY_RIGHT) {
-        /* if the cursors at row less than the current line's length */
-        if (curs->col < b->lines[curs->row].len) {
-            curs->col++;
-        /* otherwise, and isn't at the last line: */
-        } else if (curs->row + 1 < b->n_lines) {
-            curs->row++; 
-            curs->col = 0; /* move to beg. of line */
-        }
-    } else if (ch == KEY_UP && curs->row > 0) {
-        curs->row--; /* if the cursors last col was greater *
-        * than the new line's length, move it to the EOL */
-        if (curs->col > b->lines[curs->row].len) { 
-            curs->col = b->lines[curs->row].len;
-        }
-    } else if (ch == KEY_DOWN && curs->row + 1 < b->n_lines) {
-        curs->row++;
-        if (curs->col > b->lines[curs->row].len) {
-            curs->col = b->lines[curs->row].len;
-        }
-
-    /* 'utility' key bindings -- escapes & exits, so immutable is hard-stopped after this, always */
-    } else if (ch == 27) { /* esc */
-        curs->action = 1;
-    } else if (ch == KEY_RESIZE) { /* terminal window resized */
-        getmaxyx(stdscr, rt->screen_h, rt->screen_w);
-        grow_pad(b, rt);
-        if (rt->pad == NULL) {
-            print_err(edit_src, "NULL pad after RESIZE digest in action_key", 4);
-            return;
-        }
-        clear();
-        refresh();
-
-    /* if in an immutable state, process no other captured keys */
-    } else if (!mutable) {
-        if (ch == 'x') { curs->action = 1; }
-        return;
-
-    } else if (ch == '\n' || ch == KEY_ENTER) {
-        if (indentable(b, curs)) { /* 'smart indent' */
-            curs->indent_l++; /* increase indent */
-            buffer_split_line(b, curs->row, curs->col);
-            curs->row++;
-            curs->col = 0;
-            for (int a = 0; a < indent_col(curs); a++) {
-                buffer_insert_char(b, curs->row, curs->col, (char)32);
-            }
-            curs->col += indent_col(curs);
-
-        } else { /* if leaving a line comprised entirely of spaces/tabs, clear it */
-            if (whitespace(b, curs->row)) {
-                for (int i = 0; i < indent_col(curs); i++) {
-                    buffer_delete_char(b, curs->row, curs->col - 1);
-                    curs->col--;
-                }
-            }
-            /* regular new line + matched indent level */
-            buffer_split_line(b, curs->row, curs->col);
-            curs->row++;
-            curs->col = 0;
-            if (curs->indent_l) {
-                /* maintain current level unless otherwise indicated */
-                for (int a = 0; a < indent_col(curs); a++) {
-                    buffer_insert_char(b, curs->row, curs->col, (char)32);
-                }
-                curs->col = indent_col(curs);
-            }
-        }
-
-    } else if (ch == KEY_BACKSPACE || ch == 127) {
-        /* if the cursor's not at column 0 */
-        if (curs->col > 0) {
-            buffer_delete_char(b, curs->row, curs->col - 1);
-            curs->col--;
-        /* otherwise, join the current line w.the previous */
-        } else if (curs->row > 0) {
-            int prev_len = b->lines[curs->row - 1].len;
-            // buffer_join_lines(b, curs->row - 1);
-            buffer_join_lines(b, curs->row);
-            curs->row--;
-            curs->col = prev_len; /* land at join point */
-        }
-
-    } else if (ch == '\t') { /* TAB key */
-        for (int i = 0; i < GLOBAL_INDENT_LEN; i++) {
-            buffer_insert_char(b, curs->row, curs->col, (char)32);
-            curs->col++;
-        }
-
-    /* ctrl key digest */
-    } else if (ch >= 1 && ch <= 26) {
-        if (ch == 5) {
-            if (mutable) { /* technically, this should be impossible, 
-                but being defensive is better than a prayer */
-                buffer_duplicate_line(b, curs->row);
-                curs->row++; /* move cursor to eol of new line */
-            } else {
-                curs->sprint = 1;
-                curs->smsg = immutable_str;
-            }
-        } else if (ch == 15) { /* ctrl + o */
-            if (mutable) {
-                curs->sprint = 1;
-                if (!b->dirty) {
-                    curs->smsg = no_changes;
-                } else if (buffer_writeout(b, path)) {
-                    curs->smsg = wo_failure;
-                } else {
-                    curs->smsg = wo_success;
-                }
-            } else {
-                curs->sprint = 1;
-                curs->smsg = immutable_str;
-                return; /* do nothing */
-            }
-        } else if (ch == 24) { /* ctrl + x */
-            curs->action = 1;
-        } else if (ch == 26) { /* ctrl + z */
-            curs->sprint = 1;
-            curs->smsg = ctrl_z_str;
+        // if that is the case, advance past the match (done above) & break out
+        if (pmatch[0].rm_eo == pmatch[0].rm_so) {
+            break;
         }
     }
 }
 
-
-int repair_indent(Buffer *b, Cursor *curs) {
+int repair_indent(Buffer *b, Cursor *curs)
+{
     // corrects the cursor's indent to the current indent level
     while (1) {
-        /* if the indent level doesn't match the column */
-        if (curs->col == indent_col(curs)) { break; }
-        /* repair the indent level before dedenting */
+        // if the indent level doesn't match the column
+        if (curs->col == indent_col(curs)) {
+            break;
+        }
+        // repair the indent level before dedenting
         else if (curs->col < indent_col(curs)) {
             buffer_insert_char(b, curs->row, curs->col, (char)32);
             curs->col++;
@@ -785,16 +607,24 @@ int repair_indent(Buffer *b, Cursor *curs) {
             curs->col--;
         }
     }
-    if (curs->col == indent_col(curs)) { return 0; }
+    if (curs->col == indent_col(curs)) {
+        return 0;
+    }
     print_err(edit_src, "failed to repair indent indices", 3);
     return 1;
 }
 
-
-int indentable(Buffer *b, Cursor *curs) {
+int indentable(Buffer *b, Cursor *curs)
+{
     // returns 1 if the row & context 'entered on' is valid for indenting
+    // conditions: line length is above 0 and the last
+    // char of the current line is in the current
+    // indentables list of valid chars
+
     int n = b->lines[curs->row].len;
-    if (!(n > 0)) { return 0; }
+    if (n <= 0) {
+        return 0;
+    }
 
     for (int i = 0, x = (int)strlen(GLOBAL_INDENTABLES); i < x; i++) {
         if (b->lines[curs->row].text[n - 1] == GLOBAL_INDENTABLES[i]) {
@@ -804,52 +634,84 @@ int indentable(Buffer *b, Cursor *curs) {
     return 0;
 }
 
-
-int dedentable(Buffer *b, Cursor *curs, int ch) {
+int dedentable(Buffer *b, Cursor *curs, int ch)
+{
     // returns 1 if the entered char & context is valid for dedenting
     // conditions: cursor is indented, the line's length is
     // more than 0, and the line contains only whitespace
-    // this is ran before the char is recorded; technically there is a char
-    if (!(curs->indent_l)) { return 0; }
-    if (!(b->lines[curs->row].len > 0)) { return 0; }
-    if (!whitespace(b, curs->row)) { return 0; }
+    // this is ran before the char is recorded;
+    // technically there is a char in this line now
+
+    if (!(curs->indent_l)) {
+        return 0;
+    }
+    if (!(b->lines[curs->row].len > 0)) {
+        return 0;
+    }
+    if (!all_clear(&b->lines[curs->row])) {
+        return 0;
+    }
     for (int i = 0, x = (int)strlen(GLOBAL_DEDENTABLES); i < x; i++) {
-        if (ch == GLOBAL_DEDENTABLES[i]) { return 1; }
+        if (ch == GLOBAL_DEDENTABLES[i]) {
+            return 1;
+        }
     }
     return 0;
 }
 
+int all_clear(Line *line)
+{
+    // returns 1 if the line contains only whitespace or tabs
 
-int whitespace(Buffer *b, int row) {
-    // returns 1 if the given row contains only whitespace/tabs (no chars)
-    for (int i = 0; i < b->lines[row].len; i++) {
-        if (b->lines[row].text[i] != ' ' &&
-                    b->lines[row].text[i] != '\t') {
+    if (line->len <= 0) {
+        return 1;
+    }
+    for (int i = 0, n = line->len; i < n; i++) {
+        if (line->text[i] != ' ' && line->text[i] != '\t') {
             return 0;
         }
     }
     return 1;
 }
 
+void clr_empty_lines(Buffer *b, int curr_row)
+{
+    // wipes all lines filled with only tabs or spaces
 
-void grow_pad(Buffer *b, RunTime *rt) {
+    for (int i = 0, n = b->n_lines - 1; i < n; i++) {
+        // don't erase the cursor's current line
+        if (i == curr_row) {
+            continue;
+        }
+        if (all_clear(&b->lines[i])) {
+            b->lines[i].len       = 0;
+            b->lines[i].text      = '\0';
+            b->lines[i].hlite_NOK = 0;
+        }
+    }
+}
+
+void grow_pad(Buffer *b, RunTime *rt)
+{
     // window management for the file-viewing pad;
     // same concept as line & buffer reserve:
     // if inadequate space, double, else OK
+
+    // minimum height >= b->n_lines || rt->screen_w
     int need_h = b->n_lines + 1;
-    int need_w = rt->screen_w;
-    for (int i = 0; i < b->n_lines; i++) {
-        if (b->lines[i].len + 1 > need_w) {
-            need_w = b->lines[i].len + 1;
-        }
+    if (need_h < rt->screen_h) {
+        need_h = rt->screen_h;
     }
+
+    int need_w = rt->screen_w > rt->max_line ? rt->screen_w : rt->max_line;
+
     int cur_h, cur_w;
     getmaxyx(rt->pad, cur_h, cur_w);
     if (need_h > cur_h || need_w > cur_w) {
         delwin(rt->pad);
         int new_h = need_h > cur_h * 2 ? need_h : cur_h * 2;
         int new_w = need_w > cur_w * 2 ? need_w : cur_w * 2;
-        rt->pad = newpad(new_h, new_w);
+        rt->pad   = newpad(new_h, new_w);
         if (rt->pad == NULL) {
             print_err(edit_src, "NULL pad while attempting to grow it", 4);
             return;

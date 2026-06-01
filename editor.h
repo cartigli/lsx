@@ -7,45 +7,29 @@
 #include "buff.h"
 #include "types.h"
 
+// runs the buffer & ncurses window; main manager
+void alter_file(Buffer *b, RunTime *rt, Cursor *curs, const char *path,
+    int MUTABLE);
 
-/* handles message printing & clearing based on frames */
-// void stt_handler(WINDOW *s, const char *msg);
+// digest key presses
+void action_key(Buffer *b, RunTime *rt, Cursor *curs, int ch, const char *path,
+    int mutable);
 
-/* add or expand memory for the pad */
-void grow_pad(Buffer *b, RunTime *rt);
-
-/* runs the buffer & ncurses window; main manager */
-void alter_file(Buffer *b, RunTime *rt, Cursor *curs, const char *path, int MUTABLE);
-
-/* digest key presses */
-void action_key(Buffer *b, RunTime *rt, Cursor *curs, int ch, const char *path, int mutable);
-
-/* repairs indent levels if corrupted */
+// repairs indent levels if corrupted
 int repair_indent(Buffer *b, Cursor *curs);
 
-/* checks character entered for an indent */
+// checks character entered for an indent
 int indentable(Buffer *b, Cursor *curs);
 
-/* checks character entered for a dedent */
+// checks character entered for a dedent
 int dedentable(Buffer *b, Cursor *curs, int ch);
-
-/* find characters in a given line, if present */
-int whitespace(Buffer *b, int row);
 
 // runs (or decides not to run) the compiled expressions against lines of text
 void refresh_expression(Line *l);
+
 /* highlights the syntax from a set of predefined RegEx Expressions */
-// void regex_color(short *column_colors, const char *text, int len, const regex_t *regxx, int code);
-void regex_color(Cell *cells, const char *text, int len, const regex_t *regxx, int code);
-
-void check_multiline_exps(Buffer *b);
-
-void id_multiline_exp_chars(Buffer *b);
-
-void regex_find_inits(Cell *cells, const char *text, int len,
-            const regex_t *regxx, int code);
-void regex_find_kills(Cell *cells, const char *text, int len,
-            const regex_t *regxx);
+void regex_color(Cell *cells, const char *text, int len, const regex_t *regxx,
+    int code);
 
 typedef struct {
     int start;
@@ -55,14 +39,22 @@ typedef struct {
 typedef struct {
     CharIndex init;
     CharIndex kill;
-    // int init;
-    // int kill;
 } CharIndices;
 
-void walk_explicit_express(Buffer *b);
+// an 'explicit' walker through the whole buffer
+// looking for initiations and terminations of
+// multi-line expressions
+void walk_explicit_express(Buffer *b, int dirty);
 
-// CharIndex *regex_search(const char *text, int len, const regex_t *regxx);
-int regex_search(const char *text, int pos, const regex_t *regxx, CharIndex *index);
+// searches a line from pos = pos for the given expression
+int regex_search(const char *text, int pos, const regex_t *regxx,
+    CharIndex *index);
 
+// wipes all whitespace-only lines from the buffer
+// (unless cursor is currently on the row to clear)
+void clr_empty_lines(Buffer *b, int curr_row);
+int all_clear(Line *line);
+
+void grow_pad(Buffer *b, RunTime *rt);
 
 #endif

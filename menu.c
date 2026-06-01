@@ -1,35 +1,35 @@
 #include <dirent.h>
+#include <ncurses.h>
 #include <regex.h>
 #include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <ncurses.h>
 #include <unistd.h>
 
-#include "fsio.h"
 #include "editor.h"
 #include "error.h"
+#include "fsio.h"
 #include "menu.h"
 #include "utils.h"
 
-
-void menu(MGMT *mgmt) {
+void menu(MGMT *mgmt)
+{
     // runs and menu and manages interactions thereof
 
     FSNode *cd = mgmt->cd;
     Mstate *ms = mgmt->ms;
 
     // the choices are the current directory's FSNode children
-    FSNode** choices = cd->children;
-    
+    FSNode **choices = cd->children;
+
     int ch;
-    touchwin(ms->main); /* 'wake up' window */
-    werase(ms->main); /* create menu window */
+    touchwin(ms->main); // 'wake up' window
+    werase(ms->main);   // create menu window
 
     // print the current directory's path to the status bar
-    int y = getmaxy(ms->main);
+    int y   = getmaxy(ms->main);
     int row = y - STATUS_RROWS - 1; // - 1 for border/outline
 
     // initiate & intialize the status path buffer
@@ -56,7 +56,7 @@ void menu(MGMT *mgmt) {
         int fcx = 0;
         for (int i = 0; i < cd->n_children; i++) {
             // apply the highlight attribute to the cursor's item
-            if (i == ms->choice) { wattron(ms->main, A_REVERSE); }
+            if (i == ms->choice) wattron(ms->main, A_REVERSE);
 
             if (!choices[i]->is_dir) {
                 // if not a dir, print on a new 'grid'
@@ -66,21 +66,22 @@ void menu(MGMT *mgmt) {
                 if (mgmt->config->hide_size) { // if sizes are hidden
                     mvwprintw(ms->main, row, col, "%s", choices[i]->name);
                 } else { // else, there are padding & spacing vars to specify
-                    mvwprintw(ms->main, row, col,
-                                "[:%*ld bytes] %s", (int)ms->block_size,
-                                choices[i]->blocks * ST_BLOCK_SIZE,
-                                choices[i]->name);
+                    mvwprintw(ms->main, row, col, "[:%*ld bytes] %s",
+                        (int)ms->block_size, choices[i]->blocks * ST_BLOCK_SIZE,
+                        choices[i]->name);
                 }
                 fcx++;
 
             } else {
-                // if not a file, dirs don't get sizes and are printed above files
+                // if not a file, dirs don't get sizes
+                // and are printed above files
                 int row = (i / ms->n_cols) + 2; // + 1 down shift
-                int col = (i % ms->n_cols) * ms->col_width + 2; // + 2 for right shift
+                int col =
+                    (i % ms->n_cols) * ms->col_width + 2; // + 2 right shift
                 mvwprintw(ms->main, row, col, "%s", choices[i]->name);
             }
 
-            if (i == ms->choice) { wattroff(ms->main, A_REVERSE); }
+            if (i == ms->choice) wattroff(ms->main, A_REVERSE);
         };
 
         /* print the default "exit: x" or print the status message */
@@ -88,10 +89,11 @@ void menu(MGMT *mgmt) {
 
         int x, y;
         getmaxyx(ms->main, y, x);
-        int row = y - STATUS_RROWS - 1; // - 1 for border/outline
+        int row     = y - STATUS_RROWS - 1; // - 1 for border/outline
         int clr_col = x - MAX_STTM_LEN;
         int msg_len = (int)strlen(stt);
-        int print_col = x > msg_len ? x - msg_len - 2 : 0;  // - 2 for border cushion
+        int print_col =
+            x > msg_len ? x - msg_len - 2 : 0; // - 2 for border cushion
 
         wmove(ms->main, row, clr_col);
         // manual clear to preserve border elements
@@ -100,8 +102,8 @@ void menu(MGMT *mgmt) {
             clr_col++;
         }
         mvwprintw(ms->main, row, print_col, "%s", stt);
-        if (mgmt->frames) { mgmt->frames--; }
-        
+        if (mgmt->frames) mgmt->frames--;
+
         wrefresh(ms->main);
 
         ch = wgetch(ms->main);
@@ -109,14 +111,12 @@ void menu(MGMT *mgmt) {
         // map the actual choice to the virtual grid
         if (ms->choice < cd->n_dirs) {
             ms->v_choice = ms->choice;
-        }
-        else {
-            ms->v_choice = ms->ff_row +
-                    (ms->choice - cd->n_dirs);
+        } else {
+            ms->v_choice = ms->ff_row + (ms->choice - cd->n_dirs);
         }
 
         // traversal / key digest
-        switch(ch) {
+        switch (ch) {
             case KEY_RIGHT:
                 ms->v_choice++;
                 break;
@@ -140,9 +140,8 @@ void menu(MGMT *mgmt) {
                 if (choices[ms->choice]->is_dir) {
                     mgmt->intention = 1;
                     goto breakout;
-                }
-                else {
-                    mgmt->frames = 2;
+                } else {
+                    mgmt->frames  = 2;
                     mgmt->stt_msg = "not a dir";
                     break;
                 }
@@ -151,36 +150,37 @@ void menu(MGMT *mgmt) {
                     mgmt->intention = 2;
                     goto breakout;
                 } else {
-                    mgmt->frames = 2;
+                    mgmt->frames  = 2;
                     mgmt->stt_msg = "not a file";
                     break;
                 }
             case 'e': // edit the selection
-            // if the current state is immutable, warn & continue
+                      // if the current state is immutable, warn & continue
                 if (!(mgmt->config->mutable)) {
+                    mgmt->frames  = 2;
                     mgmt->stt_msg = "immutable";
-                    mgmt->frames = 2;
                     break;
                 } else {
                     mgmt->intention = 3;
                     goto breakout;
                 }
-            case 'p': // 'cd ..'
+            case 'p':                   // 'cd ..'
                 if (cd == mgmt->root) { // roots parents are NULL
+                    mgmt->frames  = 2;
                     mgmt->stt_msg = "already at root";
-                    mgmt->frames = 2;
                 }
                 // only block that doesn't go to breakout
-                mgmt->cd = mgmt->cd->parent;
+                mgmt->cd        = mgmt->cd->parent;
                 mgmt->intention = 4;
-                werase(ms->main); return;
+                werase(ms->main);
+                return;
         }
 
         // if the actual choice is an empty dir slot of the
         // virtual grid and its less than the first file row,
         // then 'skip' or 'jump' the cursor to the next file
         if (ms->v_choice >= cd->n_dirs && ms->v_choice < ms->ff_row) {
-            switch(ch) {
+            switch (ch) {
                 case KEY_DOWN:
                     ms->v_choice += ms->n_cols;
                     break;
@@ -201,15 +201,14 @@ void menu(MGMT *mgmt) {
             ms->v_choice = 0;
         }
         if (ms->v_choice >= ms->v_lim) {
-            ms->v_choice = ms->v_lim -1;
+            ms->v_choice = ms->v_lim - 1;
         }
-    
+
         // map to the true array
         if (ms->v_choice < cd->n_dirs) {
             ms->choice = ms->v_choice;
-        } else { 
-            ms->choice = cd->n_dirs + 
-            (ms->v_choice - ms->ff_row);
+        } else {
+            ms->choice = cd->n_dirs + (ms->v_choice - ms->ff_row);
         }
     }
 
@@ -217,5 +216,4 @@ breakout:
     mgmt->cd = choices[ms->choice];
     werase(ms->main);
     return;
-
 }

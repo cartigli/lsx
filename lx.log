@@ -1,5 +1,8 @@
- 22:11:49 [34mDEBUG [0m[main.c/.h] path passed as arg OK 
- 22:11:49 [34mDEBUG [0m[main.c/.h] mutability disabled 
- 22:11:49 [34mDEBUG [0m[main.c/.h] args parsed; running config 
- 22:11:49 [34mDEBUG [0m[main.c/.h] mode: EDIT; running editor 
- 22:11:49 [34mDEBUG [0m[highlight.c/.h] active twin sets: 2 
+ 00:05:46 [34mDEBUG [0m[main.c/.h] path passed as arg OK 
+ 00:05:46 [34mDEBUG [0m[main.c/.h] mode: EDIT; running editor 
+ 00:05:46 [33mWARNING [0m[buff.c/.h] file is less than 1 line long; fabricating it 
+ 00:05:46 [34mDEBUG [0m[main.c/.h] detected lang: c 
+ 00:05:46 [34mDEBUG [0m[main.c/.h] editor runtime vars initialized 
+ 00:05:48 [34mDEBUG [0m[main.c/.h] editor cleaned & memory freed 
+ 00:05:48 [34mDEBUG [0m[main.c/.h] runner fin; windows torn down 
+ 00:05:48 [34mDEBUG [0m[main.c/.h] main fin; flushing logs & freeing config 

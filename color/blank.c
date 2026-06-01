@@ -1,6 +1,14 @@
 #include "blank.h"
 
 
+SyntaxTwins BLANK_TWINTERMS[] = {
+    {
+        .ix = { .expression = "", .color_code = LTGRAY, .type = NUMERICALS, },
+        .kx = { .expression = "", .color_code = LTGRAY, .type = NUMERICALS, },
+    },
+};
+
+
 SyntaxDemands BLANK_DEMANDS[] = {
     /*  FAKES */
     {
@@ -12,7 +20,8 @@ SyntaxDemands BLANK_DEMANDS[] = {
 
 const char *BLANK_INDENTABLES = { "{[(" };
 const char *BLANK_DEDENTABLES = { "}])" };
-int BLANK_INDENT_LENGTH = 4;
+int BLANK_INDENT_LEN = 4;
 
+const unsigned int N_BLANK_DEMANDS = 1;
 
-const unsigned int BLANK_N_DEMANDS = 1;
+const unsigned int N_BLANK_TWINTERMS = 1;

@@ -1,47 +1,18 @@
 #include "c_color.h"
 
 
-SyntaxDemands C_CMMT_INITEXP[] = {
-    {
-        .expression = "[[:space:]]*/\\*[[:space:]]*",
-        .color_code = ML_GRAY,
-        .type = NUMERICALS,
-    },
-};
-
-SyntaxDemands C_CMMT_KILLEXP[] = {
-    {
-        .expression = "[[:space:]]*\\*/[[:space:]]*",
-        .color_code = ML_GRAY,
-        .type = NUMERICALS,
-    },
-};
-
-SyntaxDemands C_NXTLSTR_INITEXP[] = {
-    {
-        .expression = "\"[[:space:][:digit:][:print:]]*\\\\$",
-        .color_code = YELLOW,
-        .type = NUMERICALS,
-    },
-};
-
-SyntaxDemands C_NXTLSTR_KILLEXP[] = {
-    {
-        .expression = "^[[:space:][:digit:][:print:]]*\";$",
-        .color_code = YELLOW,
-        .type = NUMERICALS,
-    },
-};
-
-
 SyntaxTwins C_TWINTERMS[] = {
     {
-        .ix = C_CMMT_INITEXP,
-        .kx = C_CMMT_KILLEXP,
+        .ix = { .expression = "[[:space:]]*/\\*[[:space:]]*",
+            .color_code = ML_GRAY, .type = NUMERICALS, },
+        .kx = { .expression = "[[:space:]]*\\*/[[:space:]]*",
+            .color_code = ML_GRAY, .type = NUMERICALS, },
     },
     {
-        .ix = C_NXTLSTR_INITEXP,
-        .kx = C_NXTLSTR_KILLEXP,
+        .ix = { .expression = "\"[[:space:][:digit:][:print:]]*\\\\$",
+            .color_code = YELLOW, .type = NUMERICALS, },
+        .kx = { .expression = "^[[:space:][:digit:][:print:]]*\";$",
+            .color_code = YELLOW, .type = NUMERICALS, },
     },
 };
 
@@ -181,10 +152,10 @@ SyntaxDemands C_DEMANDS[] = {
 
 const char *C_INDENTABLES = { "{[(" };
 const char *C_DEDENTABLES = { "}])" };
-int C_INDENT_LENGTH = 4;
+int C_INDENT_LEN = 4;
 
 
-const unsigned int C_N_DEMANDS = sizeof(C_DEMANDS) / sizeof(C_DEMANDS[0]);
+const unsigned int N_C_DEMANDS = sizeof(C_DEMANDS) / sizeof(C_DEMANDS[0]);
 
 const unsigned int N_C_MULTI_PAIR_DEMANDS =
             sizeof(C_TWINTERMS) / sizeof(C_TWINTERMS[0]);

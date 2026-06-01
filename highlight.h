@@ -5,6 +5,7 @@
 
 #include "types.h"
 
+extern const lang_names LANG_NAMES[];
 
 // enum'd color codes mapped to RGB values
 extern const ColorCode COLOR_CODES[];
@@ -29,6 +30,5 @@ int compile_regex(language lang);
 
 // free compiled regex
 void free_reg(void);
-
 
 #endif

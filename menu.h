@@ -3,15 +3,13 @@
 
 #include "types.h"
 
-
-/* menu of indexed filesystem entries */
+// menu of indexed filesystem entries
 void menu(MGMT *mgmt);
 
-/* allows calling view file from FSNode instance */
-int read_from(FSNode* ff);
+// allows calling view file from FSNode instance
+int read_from(FSNode *ff);
 
-/* function to read the contents of a file */
+// function to read the contents of a file
 int view_file(char *path);
-
 
 #endif
