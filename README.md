@@ -1,11 +1,9 @@
 # lsx | ls+
-
-## A CLI tool for traversing a directory and viewing files.
-
+---
 ## ABOUT
 
-`lsx` is a command-line tool for traversing the filesystem and editing files. It serves two main purposes:
-    1. Traversal through directories & showing their contents.
+`lsx` is a command-line tool for traversing the filesystem and editing files. It serves two main purposes:\
+    1. Traversal through directories & showing their contents\
     2. Text (code) editing with syntax (basic) highlighting
 
 ## USE
@@ -18,7 +16,7 @@
 `-s | silent    ` : logging level set to CRITICAL\
 `-v | verbose   ` : logging level set to DEBUG\
 `-v<n>          ` : sets the logging level to n\
-`/path/to/entry ` : opens the menu at /path/to entry if a directory, and opens the editor if a file\
+`/path/to/entry ` : opens the menu at /path/to entry if a directory, and opens the editor if a file
 
 In a directory (probably not ~/, more on that later), running `lx` displays a 'menu' of all the files and folders inside your current directory. The folders are traversable (i.e., selecting a directory opens the same 'menu' from within the selected directory), and files are viewable (i.e., selecting a file opens a new window in the terminal with the file's contents). If the file's suffix (".c", ".py", etc.,) is of a known & supported language, then the rendered text will be syntactically highlighted. If it is not code or of an unknown type (".txt", ".md", etc.,), then it will be rendered as plain text (no colors).
 
@@ -32,7 +30,7 @@ For more detailed information on the files, `sizes mode` shows each files' disk 
 
 ## DEPENDENCIES
 
-Ncurses -- terminal window UI
+Ncurses -- terminal window UI\
 ReGex   -- expression matching
 
 ## BACKGROUND
