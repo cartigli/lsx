@@ -124,7 +124,7 @@ void print_err(err_src src, const char *const subject, int lvl)
 
     clockk(buff, 16);
     precurse(lvl, buff);
-    sprintf(errb, "[%s] %s \n", ERR_SRC[src], subject ? subject : "");
+    snprintf(errb, sizeof errb, "[%s] %s \n", ERR_SRC[src], subject ? subject : "");
     fprintf(stderr, "%s", errb);
 }
 
@@ -137,7 +137,7 @@ void print_inf(err_src src, const char *const subject)
 
     clockk(buff, 16);
     precurse(1, buff);
-    sprintf(err_msg, "[%s] %s \n", ERR_SRC[src], subject ? subject : "");
+    snprintf(err_msg, sizeof err_msg, "[%s] %s \n", ERR_SRC[src], subject ? subject : "");
     fprintf(stderr, "%s", err_msg);
 }
 

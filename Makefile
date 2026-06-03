@@ -1,6 +1,8 @@
 CC     = gcc
-CFLAGS = -Wall -Wextra -std=c11 -g -Icolor -I.
-LNKLIB = -lncurses
+CFLAGS = -Wall -Wextra -O2 -std=c11 -g -Icolor -I.
+XTFLAGS = -Werror=format-security -Werror=implicit-function-declaration 
+LDLIBS = -lncurses
+LDFLAGS =
 TARGET = lx
 OBJS   = main.o menu.o editor.o fsio.o highlight.o \
 		buff.o utils.o error.o config.o color/c_color.o \
@@ -8,11 +10,13 @@ OBJS   = main.o menu.o editor.o fsio.o highlight.o \
 
 OSX := $(shell uname -s)
 ifeq ($(OSX),Linux)
+# 	CFLAGS += $(LXLNKS)
+	LDFLAGS += -Wl,-z,defs -Wl,z,now -Wl,-z,relro
 	CFLAGS += -D_GNU_SOURCE
 endif
 
 $(TARGET): $(OBJS)
-	$(CC) $(CFLAGS) -o $@ $^ $(LNKLIB)
+	$(CC) $(CFLAGS) $(XTFLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@

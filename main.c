@@ -213,12 +213,14 @@ void menu_init(MGMT *mgmt, Mstate *ms, Config *config)
     char buffer[MAX_FILENAME];
     strcpy(cd->name, config->root);
     strcpy(buffer, config->root);
-
+    
     if (fls_recurse(cd, buffer)) {
         free(cd);
         return;
     }
     order_rfs(cd);
+
+    // cd->parent = NULL;
 
     int block_cushion = max_rblocks(cd);
 
@@ -301,6 +303,8 @@ void populate_MS(Mstate *ms, FSNode *cd, int hide_size, int block_size)
     if (ms->n_cols < 1) {
         ms->n_cols = 1;
     }
+
+    // cd->parent = NULL;
 
     // calculate a virtual grid of n choices given n dirs
     int dir_rows = (cd->n_dirs) ? ((cd->n_dirs - 1) / ms->n_cols) + 1 : 0;

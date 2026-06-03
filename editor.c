@@ -19,10 +19,11 @@ static inline int indent_col(Cursor *curs)
 
 char *immutable_str = "exit: x";
 char *default_str   = "exit: ctrl + x";
-char *wo_success    = "wroteout buffer";
 char *no_changes    = "nothing to save";
+char *wo_success    = "wroteout buffer";
 char *wo_failure    = "writeout failed";
 char *ctrl_z_str    = "ctrl + z pressed";
+char *no_edits      = "immutable";
 
 void alter_file(Buffer *b, RunTime *rt, Cursor *curs, const char *path,
     int mutable)
@@ -102,6 +103,7 @@ void alter_file(Buffer *b, RunTime *rt, Cursor *curs, const char *path,
         int i_eo = b->n_lines > rt->screen_h
             ? rt->pad_row + rt->screen_h - STATUS_RROWS + 1
             : b->n_lines;
+        if (i_eo > b->n_lines) i_eo = b->n_lines;
         for (int i_so = rt->pad_row; i_so < i_eo; i_so++) {
             mvwprintw(rt->pad, i_so, 0, "%s", b->lines[i_so].text);
         }
@@ -124,7 +126,7 @@ void alter_file(Buffer *b, RunTime *rt, Cursor *curs, const char *path,
 
         // highlighting text visible in the terminal
         // window (by each line's regex result)
-        if (i_eo > b->n_lines) i_eo = b->n_lines;
+        // if (i_eo > b->n_lines) i_eo = b->n_lines;
 
         for (int i_so = rt->pad_row; i_so < i_eo; i_so++) {
             Line *line = &b->lines[i_so];
@@ -205,9 +207,11 @@ void action_key(Buffer *b, RunTime *rt, Cursor *curs, int ch, const char *path,
     } else if (ch == KEY_DOWN) {
         // if on the last line, move cursor to EOL
         // ([index] == [count]) || count - 1
-        if (curs->row == b->n_lines - 1) {
-            // [index] = [count] || count - 1
-            curs->col = b->lines[b->n_lines - 1].len;
+        if (curs->row >= b->n_lines - 1) {
+            if (curs->row == b->n_lines - 1) {
+                curs->col = b->lines[curs->row].len;
+            }
+            curs->row = b->n_lines - 1;
         } else {
             // else, move down a row & bind cursor col to new line length
             curs->row++;
@@ -223,7 +227,7 @@ void action_key(Buffer *b, RunTime *rt, Cursor *curs, int ch, const char *path,
 
         else { // warn about editing & return
             curs->sprint = 1;
-            curs->smsg   = no_changes;
+            curs->smsg   = no_edits;
         }
         // always, always return if IMMUTABLE
         return;

@@ -165,16 +165,18 @@ void menu(MGMT *mgmt)
                     goto breakout;
                 }
             case 'p': // 'cd ..'
-                if (cd == mgmt->root) {
-                    // roots parents are NULL; nowhere to go
+                // roots parents are NULL; nowhere to go
+                if (cd->parent == NULL) {
                     mgmt->frames  = 2;
                     mgmt->stt_msg = "already at root";
+                    break;
+                } else {
+                    // only block that doesn't go to breakout
+                    mgmt->cd        = mgmt->cd->parent;
+                    mgmt->intention = 4;
+                    werase(ms->main);
+                    return;
                 }
-                // only block that doesn't go to breakout
-                mgmt->cd        = mgmt->cd->parent;
-                mgmt->intention = 4;
-                werase(ms->main);
-                return;
         }
 
         /* if the actual choice is an empty dir slot of the *
