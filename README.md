@@ -4,18 +4,6 @@
 - Traversal through directories & showing their contents
 - Text editing with (code) syntax highlighting
 
-## HERE'S SOME RED TEXT
-
-
-$\textsf{\color{red} Hello, world}$
-
-
-$\textsf{\color(red) Text sample}$
-
-
-$\color{red} Text Sample$
-
-
 <hr>
 
 ## DEPENDENCIES
