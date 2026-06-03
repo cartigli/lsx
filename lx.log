@@ -1,8 +1,0 @@
- 17:13:40 [34mDEBUG [0m[main.c/.h] mode: MENU; running menu 
- 17:13:40 [34mDEBUG [0m[main.c/.h] menu vars initialized 
- 17:13:41 [34mDEBUG [0m[main.c/.h] detected lang: none 
- 17:13:41 [34mDEBUG [0m[main.c/.h] editor runtime vars initialized 
- 17:13:43 [34mDEBUG [0m[main.c/.h] editor cleaned & memory freed 
- 17:13:46 [34mDEBUG [0m[main.c/.h] menu fin; window deleted & memory freed 
- 17:13:46 [34mDEBUG [0m[main.c/.h] runner fin; windows torn down 
- 17:13:46 [34mDEBUG [0m[main.c/.h] main fin; flushing logs & freeing config 
