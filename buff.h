@@ -41,6 +41,9 @@ void buffer_join_lines(Buffer *b, int row);
 
 void buffer_duplicate_line(Buffer *b, int row);
 
+void buffer_insert_n(Buffer *b, int row, int col, char c, int n);
+void buffer_clear_n(Buffer *b, int row, int col, int n);
+
 // writes the modified buffer to the disk (saves file)
 int buffer_writeout(Buffer *b, const char *path);
 

@@ -40,7 +40,7 @@ void menu(MGMT *mgmt)
 
     // wipe the whole line; inside the loop, only clear what
     // *could* contain some previous status, but not this path
-    wmove(ms->main, row, 0); /* row = last, col = first */
+    wmove(ms->main, row, 0); // row = last, col = first
     wclrtoeol(ms->main);
     mvwprintw(ms->main, row, 0, "%s", stt_buff);
 
@@ -50,7 +50,6 @@ void menu(MGMT *mgmt)
 
     const char *default_stt = "x to exit";
 
-    /* draw choices */
     // draw choices & cursor's selection
     while (1) {
         int fcx = 0;
@@ -84,7 +83,7 @@ void menu(MGMT *mgmt)
             if (i == ms->choice) wattroff(ms->main, A_REVERSE);
         };
 
-        /* print the default "exit: x" or print the status message */
+        // print the default "exit: x" or print the status message
         const char *stt = mgmt->frames ? mgmt->stt_msg : default_stt;
 
         int x, y;
@@ -129,7 +128,7 @@ void menu(MGMT *mgmt)
             case KEY_UP:
                 ms->v_choice -= ms->n_cols;
                 break;
-            case 10: // enter / return: select *blindly*
+            case 10: // enter / return: select
             case 13: // if dir, open, if file, read/edit
                 mgmt->intention = choices[ms->choice]->is_dir ? 1 : 2;
                 goto breakout;
@@ -155,8 +154,9 @@ void menu(MGMT *mgmt)
                     break;
                 }
             case 'e': // edit the selection
-                      // if the current state is immutable, warn & continue
                 if (!(mgmt->config->mutable)) {
+                    // if the current state is immutable,
+                    // warn & continue
                     mgmt->frames  = 2;
                     mgmt->stt_msg = "immutable";
                     break;
@@ -164,8 +164,9 @@ void menu(MGMT *mgmt)
                     mgmt->intention = 3;
                     goto breakout;
                 }
-            case 'p':                   // 'cd ..'
-                if (cd == mgmt->root) { // roots parents are NULL
+            case 'p': // 'cd ..'
+                if (cd == mgmt->root) {
+                    // roots parents are NULL; nowhere to go
                     mgmt->frames  = 2;
                     mgmt->stt_msg = "already at root";
                 }
@@ -176,9 +177,10 @@ void menu(MGMT *mgmt)
                 return;
         }
 
-        // if the actual choice is an empty dir slot of the
-        // virtual grid and its less than the first file row,
-        // then 'skip' or 'jump' the cursor to the next file
+        /* if the actual choice is an empty dir slot of the *
+         * virtual grid and its less than the first file row, *
+         * then 'skip' or 'jump' the cursor to the next true file */
+
         if (ms->v_choice >= cd->n_dirs && ms->v_choice < ms->ff_row) {
             switch (ch) {
                 case KEY_DOWN:

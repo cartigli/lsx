@@ -27,18 +27,20 @@ int sf_strcat(char *a, const char *o, int bufflen)
     }
 
     while (*o) {
+        // bad strcat, kill it to save crash & return error
         if (c >= lim - 1) {
-            /* bad strcat, kill it to save crash & return error */
             *(a + c) = '\0';
             print_err(util_src,
                 "failed to safely concatenate strings; corrupted buffer", 4);
             return 1;
         }
-        *(a + c) = *o; /* copy o to a's free values one byte at a time */
+        // copy o to a's free values one byte at a time
+        *(a + c) = *o;
         c++;
         o++;
     }
-    *(a + c) = '\0'; /* add a terminator (room from bufflen - 1) */
+    // add a terminator (room from bufflen - 1)
+    *(a + c) = '\0';
     return 0;
 }
 
@@ -52,12 +54,12 @@ void usage(void)
         "lx /path/to/file.txt  run editor on file at /path (no menu)\n"
         "\n"
         "Options:\n"
-        "no_size, -ns          don't show the file's sizes\n"
-        "no_edit, -ne          don't allow files to be edited (read mode "
+        "sizes, -sz            don't show the file's sizes\n"
+        "immutable, -im        don't allow files to be edited (read mode "
         "only)\n"
         "verbose, silent       set the logging to max or none, respectively\n"
-        "-v<level>             set the logging verbosity to an int from"
-        "                                     1 [DEBUG] to 5 [CRITICAL]\n"
+        "-v[n]                 set the logging verbosity to [n];"
+        " 0 = DEBUG, 4 = CRITICAL\n"
         "\n"
         "Notes:\n"
         "A: lx /path/to/dir & lx /path/to/file are the same command;\n"
@@ -67,6 +69,6 @@ void usage(void)
         "argument. All other args' or flags' ordering is unimportant.\n"
         "\n"
         "max args: [ 4 + a path ]\n"
-        "ex: lx -ns -ne verbose /path/to/dir (or file)\n";
+        "ex: lx -sz -im v /path/to/entry\n";
     fprintf(stdout, "%s", use);
 }

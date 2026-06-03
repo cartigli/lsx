@@ -3,6 +3,7 @@
 .DS_Store
 *.o
 lx
+lx.log
 db.py
 
 reports/*

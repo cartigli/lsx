@@ -5,12 +5,15 @@
 #include "buff.h"
 #include "error.h"
 
-// prototypes for static, local only functions
+// static memory 'expanders'
 static void line_reserve(Line *l, int need);
 static void buffer_reserve(Buffer *b, int need);
 
 Buffer *buffer_load(const char *path)
 {
+    // initializes a buffer from a given path found on disk
+    // if empty/non-existent file, then 'fabricate' an empty buffer
+
     Buffer *b = calloc(1, sizeof(Buffer));
     if (!b) {
         print_err(buff_src, "failed to allocate memory for the initial buffer",
@@ -29,22 +32,22 @@ Buffer *buffer_load(const char *path)
     else {
         buffer_reserve(b, 32);
 
+        // the line returned could be truncated if greater than 4096,
+        // checking for the EOL terminator & growing the line resolves this
         char chunk[4096];
         while (fgets(chunk, sizeof(chunk), f)) {
-            // the line returned could be truncated if greater than 4096,
-            // checking for the EOL terminator & growing the line resolves this
 
-            // for every char read, increase, or check if needs to increase,
-            // the buffer by 1. this does not mean reallocing on every iteration
-            // since the capacity gets doubled, not incremented, on each call
-            // (if the need's not met)
+            /* for every char read, increase, or check if needs to increase, *
+             * the buffer by 1. this does not mean reallocing on every iteration
+             * * since the capacity gets doubled, not incremented, on each call
+             * * (if the need's not met) */
             buffer_reserve(b, b->n_lines + 1);
             Line *l      = &b->lines[b->n_lines];
-            l->text      = NULL;
-            l->len       = 0;
-            l->capacity  = 0;
-            l->cells     = NULL;
-            l->hlite_NOK = 1;
+            l->text      = NULL; // initialized line: NULL text,
+            l->len       = 0;    // length of 0
+            l->capacity  = 0;    // capacity of 0
+            l->cells     = NULL; // NULL color cells
+            l->hlite_NOK = 1;    // needs refreshing
 
             /* for lines longer than 4096 (identified by having no *
              * new line terminator) increase the line's reserve, update *
@@ -56,9 +59,7 @@ Buffer *buffer_load(const char *path)
                     (chunk_len > 0 && chunk[chunk_len - 1] == '\n');
 
                 // if it does, 'strip' it
-                if (has_newline) {
-                    chunk_len--;
-                }
+                if (has_newline) chunk_len--;
 
                 // reserve room for the chunk + the current length
                 line_reserve(l, l->len + chunk_len + 1);
@@ -71,13 +72,9 @@ Buffer *buffer_load(const char *path)
                 l->text[l->len] = '\0';
 
                 // if the line had a newline escape, this line's done
-                if (has_newline) {
-                    break;
-                }
+                if (has_newline) break;
                 // otherwise, keep looping until fgets returns nothing
-                if (!fgets(chunk, sizeof(chunk), f)) {
-                    break;
-                }
+                if (!fgets(chunk, sizeof(chunk), f)) break;
             }
             // increment the line count
             b->n_lines++;
@@ -100,16 +97,13 @@ static void buffer_reserve(Buffer *b, int need)
     // increase the buffer's capacity of lines
 
     // if the buffer can hold what is needed, there's nothing to do
-    if (b->capacity >= need) {
-        return;
-    }
+    if (b->capacity >= need) return;
+
     // if it does not have enough room, start at the
     // current capacity or 32 (arbitrary initial size)
     int new_capacity = b->capacity ? b->capacity : 32;
     // double the capacity until it can contain what is needed
-    while (new_capacity < need) {
-        new_capacity *= 2;
-    }
+    while (new_capacity < need) new_capacity *= 2;
 
     // realloc enough memory for the buffer to hold the new capacity of Lines
     Line *tmp = realloc(b->lines, new_capacity * sizeof(Line));
@@ -128,15 +122,12 @@ static void line_reserve(Line *l, int need)
     // update or increase the capacity of a single line's text/content
 
     // if the line's capacity can fit what's needed, there's nothing to do
-    if (l->capacity >= need) {
-        return;
-    }
+    if (l->capacity >= need) return;
+
     // start at the current capacity or 32 (arbitrary, above)
     int new_capacity = l->capacity ? l->capacity : 32;
     // and double the capacity until the size requirement is met
-    while (new_capacity < need) {
-        new_capacity *= 2;
-    }
+    while (new_capacity < need) new_capacity *= 2;
 
     // reallocate enough memory for the line's new capacity
     // (no sizeof() here because chars are byte-size
@@ -146,12 +137,8 @@ static void line_reserve(Line *l, int need)
             "failed to realloc memory while reserving a line in the buffer", 5);
         return;
     }
-    // // update the lines' text pointer && its text capacity
-    // l->text = tmp;
-    // l->capacity = new_capacity;
 
     // make the column_colors array match the new capacity's size & length
-    // short *ctmp = realloc(l->column_colors, new_capacity * sizeof(short));
     Cell *tcells = realloc(l->cells, new_capacity * sizeof(Cell));
     if (!tcells) {
         print_err(buff_src,
@@ -164,7 +151,6 @@ static void line_reserve(Line *l, int need)
     // *after both reallocs are checked
     l->text     = tmp;
     l->capacity = new_capacity;
-
     // update the line's column_colors to the expanded array
     l->cells = tcells;
 }
@@ -192,7 +178,6 @@ void fabricate_buffer(Buffer *b)
     line.capacity = 32;
 
     // allocate a column_colors array to match
-    // short *ctmp = calloc(1, 32 * sizeof(short));
     Cell *tcells = calloc(1, 32 * sizeof(Cell));
     if (!tcells) {
         print_err(buff_src,
@@ -200,7 +185,6 @@ void fabricate_buffer(Buffer *b)
         free(tmp);
         return;
     }
-    // line.column_colors = ctmp;
     line.cells = tcells;
 
     // assign the temporary line to the buffer & update the count
@@ -212,9 +196,9 @@ void fabricate_buffer(Buffer *b)
 
 void buffer_insert_char(Buffer *b, int row, int col, char c)
 {
-    // insert char <c> into lines[<row>] at the cursor's column
-    // precondition: row is >= 0 && row < the no. of lines
-    // precondition: col is >= 0 && col < the line's length
+    /* insert char <c> into lines[<row>] at the cursor's column *
+     * precondition: row is >= 0 && row < the no. of lines *
+     * precondition: col is >= 0 && col < the line's length */
 
     Line *line = &b->lines[row];
     // reserve room for the new char (2 bytes: 1 for c, 1 for \0)
@@ -222,7 +206,7 @@ void buffer_insert_char(Buffer *b, int row, int col, char c)
 
     // adjust the line's current array to make room for the new char
     memmove(line->text + col + 1, // move to the new char's col + 1...
-        line->text + col,         // the char from the new char's col...
+        line->text + col,         // ...the char from the new char's col
         line->len - col + 1 // for the length of the line - new char's col + 1
     );                      // i.e., until the end of the line from the
                             // inserted char's column (+1 for \0)
@@ -235,7 +219,29 @@ void buffer_insert_char(Buffer *b, int row, int col, char c)
     b->dirty = 1;
     // and indicate the line's highlighting needs to be refreshed
     line->hlite_NOK = 1;
-    // line->multiline = 0;
+}
+
+void buffer_insert_n(Buffer *b, int row, int col, char c, int n)
+{
+    // insert char <c> n times from col to col + n on lines[<row>]
+    // reserve the necessary space & adjus the line as needed, ofc
+
+    if (n <= 0) return;
+
+    Line *line = &b->lines[row];
+    // reserve room for n bytes (+ 1 for \0)
+    line_reserve(line, line->len + n + 1);
+
+    memmove(line->text + col + n, // move to the pos. in line + n...
+        line->text + col,         // ...the bytes from the cusor's col
+        line->len - col + n + 1); // for line.len - col_len + n bytes
+
+    // set the entire 'block' n to char c
+    memset(line->text + col, c, n);
+
+    line->len += n;      // update the new length
+    b->dirty        = 1; // mark unsanved edits
+    line->hlite_NOK = 1; // brand the line for refreshing
 }
 
 void buffer_delete_char(Buffer *b, int row, int col)
@@ -243,21 +249,43 @@ void buffer_delete_char(Buffer *b, int row, int col)
     // delete the char from lines[<row>] at the cursor's column
     // precondition: col is >= to 0 && col < the line's length
 
-    Line *l = &b->lines[row];
+    Line *line = &b->lines[row];
 
     // adjust the lines' array of text to fill the deleted char's 'gap'
-    memmove(l->text + col, // move to the cursor's position the char from...
-        l->text + col + 1, // the cursor's column + 1...
-        l->len - col // for the length of the line until the end of the line
+    memmove(line->text + col, // move to the cursor's position the char from...
+        line->text + col + 1, // the cursor's column + 1...
+        line->len - col // for the length of the line until the end of the line
     ); // no +1 ^here because the final \0 is copied with memmove's
-       // second arg's +1
+    // second arg +1
 
     // update the line's length
-    l->len--;
+    line->len--;
     // mark the unsaved changes
     b->dirty = 1;
     // and indicate the line's highlighting needs to be refreshed
-    l->hlite_NOK = 1;
+    line->hlite_NOK = 1;
+}
+
+void buffer_clear_n(Buffer *b, int row, int col, int n)
+{
+    // deletes chars from lines[<row>] at cursor's column
+    // col: start of line to clear; n: bytes to clear
+
+    if (n <= 0) return;
+
+    Line *line = &b->lines[row];
+
+    // clamp range of clear to valid chars
+    if (col < 0) col = 0;
+    if (col + n > line->len) n = line->len - col;
+    if (n <= 0) return;
+
+    memmove(line->text + col, line->text + col + n,
+        line->len - col - n + 1); // carry the \0
+
+    line->len -= n;
+    b->dirty        = 1;
+    line->hlite_NOK = 1;
 }
 
 void buffer_split_line(Buffer *b, int row, int col)
@@ -296,8 +324,7 @@ void buffer_split_line(Buffer *b, int row, int col)
     line_reserve(dst, tail_len + 1);
     // copy into the new line's text the original line's text from the col on
     // for the length of the original line - the cursor's column
-    memcpy(dst->text, src->text + col,
-        tail_len); // wouldn't tail_len + 1 copy the \0 ?
+    memcpy(dst->text, src->text + col, tail_len);
 
     // fill the space for the null terminator in the new line
     dst->text[tail_len] = '\0';
@@ -324,16 +351,15 @@ void buffer_join_lines(Buffer *b, int row)
     // the line above the cursor's position to join/accept the current row
     Line *target_line = &b->lines[row - 1];
 
-    // reserve enough room in the row's text array for the target_line line's
-    // additional size
+    // reserve enough room in the row's text array
+    // for the target_line line's additional size
     line_reserve(target_line, current_line->len + target_line->len + 1);
 
     // copy into the line above the cursor's row/line:
-    memcpy(target_line->text +
-            target_line->len, // the previous line's text
-                              // (from its current length & on)
-        current_line->text,   // the text from the cursor's current column
-        current_line->len + 1 // for the length of the cursor's current row + 1
+    memcpy(target_line->text + // the previous line's text
+            target_line->len,  // (from its current length & on)
+        current_line->text,    // the text from the cursor's current column
+        current_line->len + 1  // for the length of the cursor's current row + 1
     );
 
     // update the previous line's length (+ current line's length)
@@ -355,10 +381,8 @@ void buffer_join_lines(Buffer *b, int row)
     b->n_lines--;
     // mark the unsaved changes
     b->dirty = 1;
-
     // indicate the previous line needs to be refreshed
     b->lines[row - 1].hlite_NOK = 1;
-    // b->lines[row - 1].multiline = 0;
 }
 
 void buffer_duplicate_line(Buffer *b, int row)

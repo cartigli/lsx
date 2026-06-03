@@ -1,8 +1,8 @@
- 00:05:46 [34mDEBUG [0m[main.c/.h] path passed as arg OK 
- 00:05:46 [34mDEBUG [0m[main.c/.h] mode: EDIT; running editor 
- 00:05:46 [33mWARNING [0m[buff.c/.h] file is less than 1 line long; fabricating it 
- 00:05:46 [34mDEBUG [0m[main.c/.h] detected lang: c 
- 00:05:46 [34mDEBUG [0m[main.c/.h] editor runtime vars initialized 
- 00:05:48 [34mDEBUG [0m[main.c/.h] editor cleaned & memory freed 
- 00:05:48 [34mDEBUG [0m[main.c/.h] runner fin; windows torn down 
- 00:05:48 [34mDEBUG [0m[main.c/.h] main fin; flushing logs & freeing config 
+ 13:42:50 [34mDEBUG [0m[main.c/.h] mode: MENU; running menu 
+ 13:42:50 [34mDEBUG [0m[main.c/.h] menu vars initialized 
+ 13:42:54 [34mDEBUG [0m[main.c/.h] detected lang: c 
+ 13:42:54 [34mDEBUG [0m[main.c/.h] editor runtime vars initialized 
+ 13:43:09 [34mDEBUG [0m[main.c/.h] editor cleaned & memory freed 
+ 13:43:10 [34mDEBUG [0m[main.c/.h] menu fin; window deleted & memory freed 
+ 13:43:10 [34mDEBUG [0m[main.c/.h] runner fin; windows torn down 
+ 13:43:10 [34mDEBUG [0m[main.c/.h] main fin; flushing logs & freeing config 

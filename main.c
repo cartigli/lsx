@@ -386,6 +386,8 @@ void init_rt_vars(RunTime *rt, Buffer *b)
     rt->pad_row = 0;
     rt->pad_col = 0;
 
+    rt->ps = PASTE_IDLE;
+
     rt->max_line = 0;
     for (int i = 0; i < b->n_lines; i++) {
         if (b->lines[i].len > rt->max_line) {
@@ -401,8 +403,9 @@ void init_rt_vars(RunTime *rt, Buffer *b)
 
 language detect_lang(const char path[])
 {
-    // detect a path's 'type' by the file ending present, if any
-    // default: blank, no expressions, no highlighting
+    /* detect a path's 'type' by the file ending present, if *
+     * any default: blank, no expressions, no highlighting *
+     * checks for first '.'; does not continue if bad ending found */
 
     language l = blank;
     int len    = strlen(path) - 1;

@@ -182,8 +182,9 @@ int load_colors(void)
 
 int compile_regex(language lang)
 {
-    // for the given lang, cache each regex expression after compiling it
-    // additionally, quit if the regex expressions' are misordered
+    /* for the given lang, cache each *
+     * regex expression after compiling it *
+     * quit if the regex expressions' are misordered */
 
     switch (lang) {
         case c:
@@ -229,7 +230,7 @@ int compile_regex(language lang)
     CmpOrder previous = NUMERICALS;
     // for each (single line) expression, compile and record status
     for (unsigned int x = 0; x < N_GLOBAL_DEMANDS; x++) {
-        /* hard stop if mis-orderd expressions */
+        // hard stop if mis-orderd expressions
         if (previous > GLOBAL_DEMANDS[x].type) {
             print_err(hlte_src,
                 "failed to compile regex_expressions;"

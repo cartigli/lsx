@@ -18,6 +18,7 @@
  * then set the number of children to the currently indexed count  *
  * before propogating up. That way, the next fls_recurse call only *
  * cleans up ix children from the parent node.                     */
+
 int fls_recurse(FSNode *cd, char *buff)
 {
     struct dirent *ent;
@@ -35,10 +36,10 @@ int fls_recurse(FSNode *cd, char *buff)
         cd->n_children++;
     }
 
-    /* count 'parent' str to index & truncate later */
+    // count 'parent' str to index & truncate later
     int xterm_pl = strlen(buff);
 
-    /* if the directory is empty, ensure nothing is processed */
+    // if the directory is empty, ensure nothing is processed
     if (cd->n_children <= 0) {
         cd->children = NULL;
     } else {
@@ -71,7 +72,7 @@ int fls_recurse(FSNode *cd, char *buff)
             return 1;
         }
 
-        /* point it at the parent */
+        // point it at the parent
         entry->parent = cd;
 
         int dtype;
@@ -91,7 +92,7 @@ int fls_recurse(FSNode *cd, char *buff)
                 "safe cat returned an error from"
                 " concatenating a path while recursing",
                 4);
-            buff[xterm_pl] = '\0'; /* reset corrupted buffer */
+            buff[xterm_pl] = '\0'; // reset corrupted buffer
             closedir(dir);
             free_rfs(entry);
             cd->n_children = ix;
@@ -114,13 +115,12 @@ int fls_recurse(FSNode *cd, char *buff)
                 continue;
             }
             entry->blocks = blocks;
-        } else if (dtype == 1) { // printing an error here would be + 1
-                                 // prints for every recursion | propogate
-                                 // the error up instead
+        } else if (dtype == 1) {
             if (fls_recurse(entry, buff)) {
                 closedir(dir);
                 free_rfs(entry);
                 cd->n_children = ix;
+                // propogate the error up
                 return 1;
             }
         }
@@ -132,7 +132,7 @@ int fls_recurse(FSNode *cd, char *buff)
         cd->children[ix] = entry;
         ix++;
 
-        /* reset buffer to parent's path */
+        // reset buffer to parent's path
         buff[xterm_pl] = '\0';
     }
     if (closedir(dir) == -1) {
@@ -175,7 +175,7 @@ void order_rfs(FSNode *cd)
 {
     if (cd == NULL) return;
     for (int i = 0; i < cd->n_children; i++) {
-        order_fs(cd->children[i]);
+        order_rfs(cd->children[i]);
     }
     order_fs(cd);
 }
@@ -184,29 +184,18 @@ void order_fs(FSNode *cd)
 {
     if (cd == NULL) return;
     if (cd->n_children) {
-        int idx      = 0;
-        FSNode **tmp = calloc(cd->n_children, sizeof(FSNode *));
-        if (!tmp) {
-            print_err(fsio_src,
-                "failed to allocate memory"
-                " for tempory sorting FSNode",
-                4);
-            return;
-        }
-        for (int i = 0; i < cd->n_children; i++) {
+        int dx = 0;
+        int nc = cd->n_children;
+
+        FSNode *tmp;
+        for (int i = 0; i < nc; i++) {
             if (cd->children[i]->is_dir) {
-                tmp[idx] = cd->children[i];
-                idx++;
+                tmp              = cd->children[dx];
+                cd->children[dx] = cd->children[i];
+                cd->children[i]  = tmp;
+                dx++;
             }
         }
-        for (int l = 0; l < cd->n_children; l++) {
-            if (!(cd->children[l]->is_dir)) {
-                tmp[idx] = cd->children[l];
-                idx++;
-            }
-        }
-        free(cd->children);
-        cd->children = tmp;
     }
 }
 

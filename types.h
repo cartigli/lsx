@@ -17,8 +17,10 @@
 // maximum chars in a filename's buffer
 #define MAX_FILENAME 1024
 
-// seld referencing struct for recording all filesystem entries found
-// note: the root's parents are NULL so traversal above it is bounded
+/* self-referencing struct for *
+ * recording all filesystem entries found *
+ * note: the root's parents are NULL *
+ * so traversal above it is bounded */
 typedef struct FSNode {
     int is_dir;
     long blocks;
@@ -51,6 +53,19 @@ typedef struct {
     const char *dedent_chars;
 } Config;
 
+// what, if anything, has been detected in a paste sequence
+typedef enum {
+    PASTE_IDLE,
+    SEQ_ESC_OK,
+    SEQ_BRACK_OK,
+    SEQ_TWO_OK,
+    SEQ_O_OK,
+    SEQ_INIT_OK,
+    SEQ_FIN_OK,
+    PASTE_ON,
+    PASTE_FIN,
+} PasteState;
+
 // runtime vars
 typedef struct {
     void *pad;    // ncurses WINDOW *
@@ -60,6 +75,7 @@ typedef struct {
     int screen_h; // terminal screen height
     int screen_w; // terminal screen width
     int pad_w;    // pad width
+    PasteState ps;
 } RunTime;
 
 // cursor stats & specs
@@ -89,9 +105,11 @@ typedef struct {
     int ff_row;
 } Mstate;
 
-// for sending structs to/from the menu
-// **note** root: initial directory; needed to free subsequent nodes
-// cwd: the menu's currently active entry for showing options/file contents
+/* for sending structs to/from the menu from main *
+ * **note** root: initial directory, *
+ * needed to free subsequent nodes *
+ * cwd: the menu's currently active *
+ * entry for showing options/file contents */
 typedef struct {
     const Config *config;
     FSNode *root; // original so tree can still be freed
@@ -165,7 +183,6 @@ typedef struct {
 
 // pairs of SyntaxDemands that (respectively)
 // indicate the beggining and end of a multi-line
-// expression (i.e., /*...*/, or python's <""">)
 typedef struct {
     SyntaxDemands ix;
     SyntaxDemands kx;

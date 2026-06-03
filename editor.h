@@ -15,6 +15,9 @@ void alter_file(Buffer *b, RunTime *rt, Cursor *curs, const char *path,
 void action_key(Buffer *b, RunTime *rt, Cursor *curs, int ch, const char *path,
     int mutable);
 
+// detects (& consumes) chars detected from a Paste Sequence
+int paste_sequence(RunTime *rt, int ch);
+
 // repairs indent levels if corrupted
 int repair_indent(Buffer *b, Cursor *curs);
 
@@ -27,7 +30,7 @@ int dedentable(Buffer *b, Cursor *curs, int ch);
 // runs (or decides not to run) the compiled expressions against lines of text
 void refresh_expression(Line *l);
 
-/* highlights the syntax from a set of predefined RegEx Expressions */
+// highlights the syntax from a set of predefined RegEx Expressions
 void regex_color(Cell *cells, const char *text, int len, const regex_t *regxx,
     int code);
 
@@ -41,9 +44,9 @@ typedef struct {
     CharIndex kill;
 } CharIndices;
 
-// an 'explicit' walker through the whole buffer
-// looking for initiations and terminations of
-// multi-line expressions
+/* an 'explicit' walker through the whole buffer *
+ * looking for initiations and terminations of *
+ * multi-line expressions */
 void walk_explicit_express(Buffer *b, int dirty);
 
 // searches a line from pos = pos for the given expression

@@ -1,60 +1,374 @@
 # lsx | ls+
----
-## ABOUT
 
-`lsx` is a command-line tool for traversing the filesystem and editing files. It serves two main purposes:\
-    1. Traversal through directories & showing their contents\
-    2. Text (code) editing with syntax (basic) highlighting
+<code>lsx</code> is a command-line tool for traversing the filesystem and editing files. It has two main utilities:
+- Traversal through directories & showing their contents
+- Text editing with (code) syntax highlighting
 
-## USE
+## HERE'S SOME RED TEXT
 
-`lx`
 
-#### OPTIONS
-`-sz | size     ` : show each files' disk use\
-`-im | immutable` : files are immutable when viewed\
-`-s | silent    ` : logging level set to CRITICAL\
-`-v | verbose   ` : logging level set to DEBUG\
-`-v<n>          ` : sets the logging level to n\
-`/path/to/entry ` : opens the menu at /path/to entry if a directory, and opens the editor if a file
+$\textsf{\color{red} Hello, world}$
 
-In a directory (probably not ~/, more on that later), running `lx` displays a 'menu' of all the files and folders inside your current directory. The folders are traversable (i.e., selecting a directory opens the same 'menu' from within the selected directory), and files are viewable (i.e., selecting a file opens a new window in the terminal with the file's contents). If the file's suffix (".c", ".py", etc.,) is of a known & supported language, then the rendered text will be syntactically highlighted. If it is not code or of an unknown type (".txt", ".md", etc.,), then it will be rendered as plain text (no colors).
 
-To traverse *out of* a directory you traversed into, `p` moves you to the current directory's parent. If you have not traversed into a directory and press `p`, the UI will warn that there are none. This is because the current directory never gets its parents indexed; if it did, every time `lx` was ran, the entire disk would have to be indexed. **This is also why its probably not wise to run this in your home folder**. There are no risks to your system, but it would index the entire directory, presumably a majority of your disk size, and would be slow. Despite this, you are your own beast! Don't let me tell you what to do.
+$\textsf{\color(red) Text sample}$
 
-To edit a file without indexing the current directory AND w.out opening the menu, run `lx filename.txt`. The program will open directory into the file's view and exit without re-opening the menu. When run like this, lx is no more than a text editor.
 
-In a sensitive directory, or one you want to be sure not to edit while viewing, there is also `immutable mode`. This forces the file-viewer to open in read-only, and will block edits to the file. If you attempt to edit the file in `immutable mode`, the program will warn you and stop the change. To run in `immutable mode`: `lx -im` | `lx immutable` | `lx -im filename.txt`
+$\color{red} Text Sample$
 
-For more detailed information on the files, `sizes mode` shows each files' disk usage in bytes. Honestly, this feature under-performs, IMO. I left it in because it *is* useful, but just not pretty. Additionally, the directories *should* show their size (as their are indexed recursively), but does not. Maybe soon. To run in `sizes mode`: `lx -sz` | `lx -sizes`
+
+<hr>
 
 ## DEPENDENCIES
+<dl>
+    <dt>Ncurses</dt>
+    <dd>terminal window U.I.<dd>
+    <dt>ReGex</dt>
+    <dd>expression matching</dd>
+</dl>
+<hr>
 
-Ncurses -- terminal window UI\
-ReGex   -- expression matching
+## QUICK START GUIDE
 
-## BACKGROUND
+Open a menu of the current directory's contents:\
+<code>./lx</code>
 
-I wrote this program because I don't really like any popular CLI text-editors. Nano was my go-to, but I didn't like its UI or configuration abilities, Micro does too much, Vim is a mystery, and on and on. What self respecting programmer would get to this point *and not* write their own editor? Well, this kind, because I had no idea how. After finishing the main content from cs50's class on C, I fell in love with C and chose this for my final project. It is something I truly care about; I genuinely want/need to code to be reliable since I am currently using this program daily, and it has a broad range of components with widely varying degrees of complexity between them, as well as a wide range of things to learn.
+#### WALK THROUGH
+
+Running <code>lx</code> opens a Menu containing the current directories files & folders as options. Move the cursor (highlighted item) between options with the direction keys. <code>Return</code> to select a file for viewing or a directory for listing its contents. Anything in the C.W.D. is fair game.
+
+If the file's language type is known and supported, the contents will be syntactically highlighted. Otherwise, it will be plain text.
+
+To traverse *up out of* a directory (i.e., <code>..</code>), <code>p</code> moves you to the current directory's parent. If you have not traversed into a directory, the U.I. will warn that you are at the root. The current directory never has its parent indexed.
+
+$\textsf{\color{red} WARNING}$ : Since this is recursive, and immediate, running it in ~/, or a very large directory, is probably unwise, and will likely be painfully slow.
+
+#### CHEAT SHEETS
+
+###### RUNTIME ARGS
+
+<table>
+    <thead>
+        <tr>
+            <th>
+                Short
+            </th>
+            <th>
+                Long
+            </th>
+            <th>
+                Effect or Result
+            </th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+                -sz
+            </td>
+            <td>
+                sizes
+            </td> 
+            <td>
+                Shows disk usage of files
+            </td>
+        </tr>
+        <tr>
+            <td>
+                -im
+            </td>
+            <td>
+                immutable
+            </td> 
+            <td>
+                Files are READ ONLY
+            </td>
+        </tr>
+        <tr>
+            <td>
+                -s
+            </td>
+            <td>
+                silent
+            </td> 
+            <td>
+                Silence all logging
+            </td>
+        </tr>
+        <tr>
+            <td>
+                -v
+            </td>
+            <td>
+                verbose
+            </td> 
+            <td>
+                Output all logging
+            </td>
+        </tr>
+        <tr>
+            <td colspan="2">
+                -v[n]
+            </td>
+            <td>
+                Set the logging verbosity to [n]
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+###### INTERACTING w.the U.I.
+
+<table>
+    <thead>
+        <tr>
+            <th>
+                Key Binding
+            </th>
+            <th>
+                Action
+            </th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+                Enter/Return
+            </td>
+            <td>
+                'Selects' the entry on the Menu
+            </td>
+        </tr>
+        <tr>
+            <td>
+                e
+            </td>
+            <td>
+                Edit a file (if mutable)
+            </td>
+        </tr>
+        <tr>
+            <td>
+                r
+            </td>
+            <td>
+                Read a file (edits blocked)
+            </td>
+        </tr>
+        <tr>
+            <td>
+                p
+            </td>
+            <td>
+                Edit a file (if mutable)
+            </td>
+        </tr>
+        <tr>
+            <td>
+                x
+            </td>
+            <td>
+                Exit the Menu
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+#### MORE
+
+In a sensitive directory, or one you want to be sure not to edit while viewing, there is <code>immutable mode</code>. This forces the files opened to be in a read-only state, and will block edits to the file. If you attempt to edit the file in <code>immutable mode</code>, the program will warn you and stop the change.
+
+For more detailed information on the files, <code>sizes mode</code> shows each files' disk usage in bytes. Not my favorite feature, but I left it in because it *is* useful.
+
+To open a file or folder other than the C.W.D., <code>lx</code> accepts a path as the last arg, if more than one are passed.
 
 ## DESIGN CHOICES & QUIRKS
 
-The highlighting logic is very simple, relative to modern IDEs. For each language supported, including BLANK, there is a struct for all the components of the language to highlight. Each struct (SyntaxDemands) has a field for the type of expression (i.e., function, variable, integer), a Regular Expression as a string, the same expression once compiled (expressions cached here), and the color_code, which references a RGB ColorCode. If the expression matches an instance in the code, it selects & colors it with the given type's color. Its also configured aggressively greedy; anything matched can't be matched again, so the order of the expressions is very important, and load bearing.
-*The greediness is so the severity or level can be considered; an integer or string inside a comment should NOT be highlighted, so after its colored (comments run first), no other expression can color it.*
-*DITTO for substitutions inside strings.*
+Aspects of this program that you, or I, might not expect.
 
-The actual colors were originally from Shiki (shoutout) and modified. Colors are stored in RGB format with hexadecimal values, but because of Ncurses color-coding requirements (x/1000, not x/255), they have to converted. Once done, they are initiated as Ncurses custom colors in load_colors().
+### HIGHLIGHTING
 
-Indent is configured to 4 by default and never uses '\t'. TBH, I don't know why anyone would. This is actually the only thing I use Nano for ATM (Makefile requires literal Tabs). Its also much easier to track this way; with tabs, the cursor's position no longer == b->lines[curs->row].len. Instead, it would have to be checked for a '\t' char, and if found, increase the line's virtual length by '\t' - 1.
+Highlighting in this program is computed from matches found of preset RegEx Expressions. There are several nuances to the flow, but basically, each 'type' to be highlighted (i.e., functions, headers, comments) has a specific RegEx expression & color code. If a match is found, it gets that color. Colors are coded to specific types, and can therefore be easily adjusted without depending on the RegEx expression to identify its target type.
 
-It is hardcoded to clear all lines of whitespace in the file, if written out. I hate whitespaces. Trailing spaces as the last char of a line (besides a new line) should also be trimmed, but are not ATM. BTW, if a file is written out while your cursor is in a line containing only whitespace, that line will not be cleared and your cursor will not be moved.
+#### The Order of Expressions Is Imperative!
 
-When 'smart' indenting, if no chars are entered before you move on the the next indented line, the empty line is cleared immediately.
+The sets of <code>SyntaxDemands</code> (structs holding each regular expression, type, and color) are ordered carefully to allow enforcing of precedent for matched characters or text. Their type is set in an enum & an error is raised if they are out-of-order.
 
-`ctrl + o` | `ctrl + x` because I <3 Nano (shoutout).
+In practice, this means nothing gets colored if its already colored. The earlier an expression is, the higher its priority.
 
-Written entirely in C.
+$\textsf{\color{gray} // comment w.a "string"}$
 
-Not for or tested on Windows.
+**Example**: A comment in the code contains a string. The comment's expression runs first, coloring the whole comment. Then the string's expression is ran, but since its match is already colored, there is nothing for it to color. If this were not the case, the commented-out string would be rendered:
 
-There are probably quite a few odd components to this program that I just do not see the same way. If you have any questions or suggestions, feel free to send me a message @ XX & thank you for checking out this project. I have thoroughly enjoyed making this and am proud of the result.
+$\textsf{\color{gray} // comment w.a \ } \textsf{\color{yellow} "(incorrectly colored) string"}$
+
+**Subtlety**: A substitution inside a string is an expression run before the strings' expression, which allows the inner substitution to be detected & colored before its enclosing string is highlighted. So its mechanics are the same as above but inverted.
+
+#### GLOBAL REGEX CACHE
+
+When a file is being loaded with a known & supported language, the program will compile & cache the regular expressions. This lets the caller (<code>pretty_runner()</code>) manage the compiled expressions' memory & life-cycle. The compiled expressions, and count thereof, are globally accessible once compiled, allowing the editor to grab whatever is currently accessible when it is run. This means:\
+- A: A language of one file won't be used to render the next one opened. 
+- B: If no files are opened, no expressions are compiled.
+
+#### BLANK
+
+This is why the <code>BLANK</code> language is necessary. It replaces the need for a check in the editor to see *if* anything was compiled. <code>BLANK</code> is simply a set of empty expressions.
+
+#### MULTI-LINE EXPRESSIONS
+
+To highlight multi-line expressions (i.e., <code>/* in C */</code> or <code>"""in Python"""</code>), a different strategy was needed. Each multi-line expression gets two RegEx Expressions; an initiator and a terminator. <code>walk_explicit_express()</code> walks each line of the buffer, checking each for a match to any of its initiator expressions (also ordered, for the same reason as above).
+
+If an expression is matched, then a 'span' is begun. The function continues to walk the buffer, looking for an terminator, and consuming characters if it finds no matches. If one is found, color until that match, end the span, and restart from the current position in the buffer, looking for the first initiator. If a terminator was not found, color the line & move to the next.
+
+### FILE SYSTEM INDEXING
+
+When the program is run in <code>MENU_MODE</code>, one of the most important pre-processing steps done is indexing the file system. To record what is found, a file system tree of <code>FSNode</code>s is made. A single <code>FSNode</code> contains the following metadata about a single file system entry in the current directory:
+
+<table>
+    <thead>
+        <tr>
+            <th>
+                Field Name
+            </th>
+            <th>
+                Purpose/Utility
+            </th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+                is_dir
+            </td>
+            <td>
+                int; answers: is a directory ? 1 : 0;
+            </td>
+        </tr>
+        <tr>
+            <td>
+                blocks
+            </td>
+            <td>
+                long; disk size by blocks used (if file)
+            </td>
+        </tr>
+        <tr>
+            <td>
+                n_children
+            </td>
+            <td>
+                int; no. of files within (if dir)
+            </td>
+        </tr>
+        <tr>
+            <td>
+                n_dirs
+            </td>
+            <td>
+                int; no. of dirs held within (if dir)
+            </td>
+        </tr>
+        <tr>
+            <td>
+                name[]
+            </td>
+            <td>
+                char; name of entry (used to build path)
+            </td>
+        </tr>
+        <tr>
+            <td>
+                **children
+            </td>
+            <td>
+                FSNode; pointer to array of this entry's entries
+            </td>
+        </tr>
+        <tr>
+            <td>
+                *parent;
+            </td>
+            <td>
+                FSNode; pointer to the entry's parent FSnode
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+Since the only <code>FSNode</code> that contains its own full path is the root, all other paths needed have to be built from the a series of concatenations. <code>untraverse()</code> is a recursive helper that builds a node's path, making it trivial in practice, but it should be noted that except the root, no node holds its full path.
+
+Less conveniently, this also means that the entire tree depends on the root node. Without it, or if it were lost/freed before the subsequent nodes, the entire tree would be leaked. There is only one entry point to the tree, and it must be carefully guarded, hence <code>MGMT</code>'s two <code>FSNode</code> fields. One holds the 'master' root while the other holds the currently selected entry (file or folder). When finished, <code>free_rfs()</code> takes the root and recursively frees the entire tree along with its children.
+
+When a selection is made, menu.c populated <code>MGMT</code>'s <code>cd</code> field with the selection. If a directory, the Menu is rerun with the selected directory, showing it's contents the same way as the original. If the selection was a file, the editor is opened with the active mutability state, and on return/exit, <code>menu_runner()</code> sets <code>MGMT</code>'s <code>cd</code> field *to the files' parent*, so when the editor is exited, the Menu is reopened with the directory from which you came.
+
+### LOGGING OFF BY ONE
+
+I have to admit, this ones weird, but I enjoy it. The <code>err_lvl</code> enum is indexed to the values 0-4 (0 = <code>DEBUG</code>, 4 = <code>CRITICAL</code>) but <code>print_err()</code> is called with levels 1-5. The rationale behind this error-prone architecture is clarity at call sites & a fully silenced verbosity option. When <code>print_err()</code> is called with a level, the <code>precurse()</code> function writes the error level enum'd & escaped to appropriate color. Then, when in <code>flush_logs()</code>, the function checks to see which, if any, errors were printed out at a level >= the verbosity.
+
+**This is how a fully-silenced option is possible.** If <code>flush_logs()</code> is ran with verbosity of 5, no logging level can equal it, and therefore none are showed. Quirky, but convenient.
+
+### MENU'S VIRTUAL GRID
+
+To get the Menu's entries listed aesthetically, <code>order_rfs()</code> recursively sorts each FSNode to put their directories before their files. From there, the longest filename is recorded and used to set the minimum column width of the Menu's grid, and which determines the number of columns to make. The number of directory-only rows is found by comparing the current directory count to the column count.
+
+**At this point, there is a (potentially only partially filled) series of rows containing only directories**.
+
+To distinctly show the two types of entries, the files are listed **on the next empty line**. This makes a 'virtual grid' of the Menu's entries which, crucially, does not represent all real values: multiple 'entries' could be non-existent if relying solely on the virtual grid.
+
+**Example**: If there are 5 directories and 4 columns, the directories' row will span 2 rows, and 3 of the second row's 'entries' will not have real values.
+
+To compensate for these values, the cursor's selection on-screen has to be 'skipped' over non-existent values to ensure they can't be highlighted, or selected. To do so, there are some simple conditionals:
+- Is the choice less than the number of directories?
+    - YES: choice = choice
+    - NO: choice  = first_file_row + (choice - num_of_dirs)
+
+If the selection is NOT within the valid directories, it needs to be remapped. To skip it, the index is adjusted to count from the first file row *as if there were no missing directories*, resulting in the first file row + the choice offset by the real number of directories.
+
+### PAD & BUFFER GROWTH
+
+The pad's sizing strategy, and the Buffer's, is not to find out how much is needed and allocating only that amount, but rather checking if the current amount is adequate, and if not, doubling it. This results in less reallocation calls than granular strategies.
+
+Neither the pad or the Buffer are ever shrunk; they only ever get allocated *more* room. If a char is deleted or the number of lines are reduced, neither one's memory is worth attempting to shrink. Both get generously sized and called often to grow, because too little memory is much more of a problem than too much.
+
+### SMART INDENTING
+
+This was the first 'feature' I made that made it feel like a text editor instead of a buffer-editor. The logic is straightforward: if the user 'Returns' on a line that ends with a character matching one of a preset list of characters, their cursor should be indented on the newline.
+
+Contrarily, if a user types a character that matches a character of a *different* preset list, their cursor is de-dented *on the same line* ***before the character is written***.
+
+*Additionally, if the cursor's column != indent_level * indent_width, the indent is repaired, or attempted to, by forcing it to the nearest valid indent column & position.*
+
+### EMPTY LINES
+
+Empty lines created while 'smart' indenting get truncated, as well as empty lines when the buffer is written out (the file's saved). Its a pretty aggressive behavior and definitely should be noted.
+
+Example of 'smart' indent empty lines truncated:
+
+User types `{` and Returns:
+```
+{
+    | <-cursor lands here, indented by 4 spaces
+```
+Return is immediately entered again, and the cursor's row increases, but the indent does not change:
+```
+{
+((this line has been cleared of spaces))
+    | <- cursor is now here
+```
+The previously indented line is now empty, and navigating to it will drop the cursor to column 0. Return again will repeat the same behavior.
+
+### TABS
+
+Literal tabs (<code>'\t'</code>) are never used for indents, ever, and having them in the file would likely make the editor show incorrect, or corrupted, file contents.\
+**VERIFIED**; when editing a Makefile that uses <code>\t</code>, the spacing was actually correct, but deleting the characters that make up the <code>\t</code> corrupted the line and likely did not do what the editor was showing.
+
+<hr>
+
+## BACKGROUND
+
+I wrote this program because I don't enjoy using any popular C.L.I. text-editors. Nano was my go-to, but I didn't love its U.I. or configuration options, Micro does too much, Vim is a whole thing, and testing/learning a new one sounded dreadful. What self respecting programmer would get to this point and *not* write their own editor? Well, this kind, because I had no idea how.
+
+After finishing the main content from cs50's introduction to C, I fell in love with the language and chose this for my final project. The components required to build this program varied widely in difficulty and subject, so I do feel like I have covered a wide variety of applications & problems with C. Among them are communications with the underlying OS (POSIX only), interacting with the filesystem, Regular Expressions (POSIX Compliant RegEx, which I found strange), Ncurses basics, & memory management, & a lot more.
+
+I was challenged to think carefully about how complex systems should work together (the editor and buffer are probably the most complex) and forced me to design very intentionally; if I did not know exactly what I was attempting to do, I would inevitably write buggy and inefficient code. Being intentional and iterative in the building process allowed me to go beyond my previous scope and create something I am genuinely proud of and confident in.
+
+*Personal Note: In my experience, my abilities have been practically limited by Python; I was never confident in its ability to be fast enough to try something like this. C, however, I have trouble making work hard enough to register when its working overtime. It is so gosh dang fast, I felt like ten lightbulbs went off in my head, all at once. C is fast because it does nothing for you! Granular control is always my favorite aspect of software, and Python did not make me feel that way. Everything I did bigger than a simple script had the 800 pound gorilla staring at me; if this isn't stupid efficient, it will be slow. The difference is Python is intuitive, and easy to loop & wrap up. If I make something happen in Python, it just uses C to do it, but it **doesn't ask me how I would like to do it**. Obviously, this is intentional, and the point of Python, but its also why I'll probably never use it again. Middle men are not cool.*
