@@ -9,7 +9,7 @@
 ## DEPENDENCIES
 <dl>
     <dt>Ncurses</dt>
-    <dd>terminal window U.I.<dd>
+    <dd>Terminal window U.I.<dd>
     <dt>ReGex</dt>
     <dd>expression matching</dd>
 </dl>
@@ -22,13 +22,15 @@ Open a menu of the current directory's contents:\
 
 #### WALK THROUGH
 
-Running <code>lx</code> opens a Menu containing the current directories files & folders as options. Move the cursor (highlighted item) between options with the direction keys. <code>Return</code> to select a file for viewing or a directory for listing its contents. Anything in the C.W.D. is fair game.
+Running <code>lx</code> opens a menu containing the current directory's files & folders as options. Move the cursor (highlighted item) between options with the direction keys.
+
+Return to select a file for viewing or a directory for listing its contents. Folders open new menus to *their* contents, and files open a viewing window for their contents.
 
 If the file's language type is known and supported, the contents will be syntactically highlighted. Otherwise, it will be plain text.
 
-To traverse *up out of* a directory (i.e., <code>..</code>), <code>p</code> moves you to the current directory's parent. If you have not traversed into a directory, the U.I. will warn that you are at the root. The current directory never has its parent indexed.
+To traverse *up out of* a directory (i.e., <code>..</code>), <code>p</code> moves you to the current directory's parent. If you have not entered a directory, the U.I. will warn that you are at the root (the current directory never has its parent indexed).
 
-$\textsf{\color{red} WARNING}$ : Since this is recursive, and immediate, running it in ~/, or a very large directory, is probably unwise, and will likely be painfully slow.
+$\textsf{\color{red} WARNING}$: Since the indexing is recursive and immediate, running <code>lx</code> in ~/, or a very large directory, will likely be painfully slow.
 
 #### CHEAT SHEETS
 
@@ -163,11 +165,11 @@ $\textsf{\color{red} WARNING}$ : Since this is recursive, and immediate, running
 
 #### MORE
 
-In a sensitive directory, or one you want to be sure not to edit while viewing, there is <code>immutable mode</code>. This forces the files opened to be in a read-only state, and will block edits to the file. If you attempt to edit the file in <code>immutable mode</code>, the program will warn you and stop the change.
+In a sensitive directory, or one you want to be sure not to edit while viewing, there is <code>immutable mode</code>. This forces the files opened to be in a read-only state and will block edits to the file. If you attempt to edit the file in <code>immutable mode</code>, the program will warn you and stop the change.
 
-For more detailed information on the files, <code>sizes mode</code> shows each files' disk usage in bytes. Not my favorite feature, but I left it in because it *is* useful.
+For more detailed information on the files, <code>sizes mode</code> shows each file's disk usage in bytes. Not my favorite feature, but I left it in because it *is* useful.
 
-To open a file or folder other than the C.W.D., <code>lx</code> accepts a path as the last arg, if more than one are passed.
+To open a file or folder other than the C.W.D., <code>lx</code> accepts a path as the last argument if more than one is passed.
 
 ## DESIGN CHOICES & QUIRKS
 
@@ -175,21 +177,21 @@ Aspects of this program that you, or I, might not expect.
 
 ### HIGHLIGHTING
 
-Highlighting in this program is computed from matches found of preset RegEx Expressions. There are several nuances to the flow, but basically, each 'type' to be highlighted (i.e., functions, headers, comments) has a specific RegEx expression & color code. If a match is found, it gets that color. Colors are coded to specific types, and can therefore be easily adjusted without depending on the RegEx expression to identify its target type.
+Highlighting in this program is computed from matches found of preset RegEx expressions. There are several nuances to the flow, but basically, each 'type' to be highlighted (i.e., functions, headers, comments) has a specific RegEx expression & color code. If a match is found, it gets that color. Colors are coded to specific types and can therefore be easily adjusted without depending on its RegEx expression to identify its type.
 
 #### The Order of Expressions Is Imperative!
 
-The sets of <code>SyntaxDemands</code> (structs holding each regular expression, type, and color) are ordered carefully to allow enforcing of precedent for matched characters or text. Their type is set in an enum & an error is raised if they are out-of-order.
+The sets of <code>SyntaxDemands</code> (structs holding each regular expression, type, and color) are ordered carefully to allow enforcement of precedence for matched characters or text. Their type is set in an enum, & an error is raised if they are out of order.
 
-In practice, this means nothing gets colored if its already colored. The earlier an expression is, the higher its priority.
+In practice, this means nothing gets colored if it's already colored. The earlier an expression is, the higher its priority.
 
 $\textsf{\color{gray} // comment w.a "string"}$
 
-**Example**: A comment in the code contains a string. The comment's expression runs first, coloring the whole comment. Then the string's expression is ran, but since its match is already colored, there is nothing for it to color. If this were not the case, the commented-out string would be rendered:
+**Example**: A comment in the code contains a string. The comment's expression runs first, coloring the whole comment. Then the string's expression is run, but since its match is already colored, there is nothing for it to color. If this were not the case, the commented-out string would be rendered:
 
 $\textsf{\color{gray} // comment w.a \ } \textsf{\color{yellow} "(incorrectly colored) string"}$
 
-**Subtlety**: A substitution inside a string is an expression run before the strings' expression, which allows the inner substitution to be detected & colored before its enclosing string is highlighted. So its mechanics are the same as above but inverted.
+**Subtlety**: A substitution inside a string is an expression run before the string's expression, which allows the inner substitution to be detected & colored before its enclosing string is highlighted. So its mechanics are the same as above but inverted.
 
 #### GLOBAL REGEX CACHE
 
@@ -203,13 +205,13 @@ This is why the <code>BLANK</code> language is necessary. It replaces the need f
 
 #### MULTI-LINE EXPRESSIONS
 
-To highlight multi-line expressions (i.e., <code>/* in C */</code> or <code>"""in Python"""</code>), a different strategy was needed. Each multi-line expression gets two RegEx Expressions; an initiator and a terminator. <code>walk_explicit_express()</code> walks each line of the buffer, checking each for a match to any of its initiator expressions (also ordered, for the same reason as above).
+To highlight multi-line expressions (i.e., <code>/* in C */</code> or <code>"""in Python"""</code>), a different strategy was needed. Each multi-line expression gets two RegEx expressions: an initiator and a terminator. <code>walk_explicit_express()</code> walks each line of the buffer, checking each for a match to any of its initiator expressions (also ordered, for the same reason as above).
 
-If an expression is matched, then a 'span' is begun. The function continues to walk the buffer, looking for an terminator, and consuming characters if it finds no matches. If one is found, color until that match, end the span, and restart from the current position in the buffer, looking for the first initiator. If a terminator was not found, color the line & move to the next.
+If an expression is matched, then a 'span' is begun. The function continues to walk the buffer, looking for a terminator, and consuming characters if it finds no matches. If one is found, color until that match, end the span, and restart from the current position in the buffer, looking for the first initiator. If a terminator was not found, color the line & move to the next.
 
 ### FILE SYSTEM INDEXING
 
-When the program is run in <code>MENU_MODE</code>, one of the most important pre-processing steps done is indexing the file system. To record what is found, a file system tree of <code>FSNode</code>s is made. A single <code>FSNode</code> contains the following metadata about a single file system entry in the current directory:
+When the program is run in <code>MENU_MODE</code>, one of the most important preprocessing steps done is indexing the file system. To record what is found, a file system tree of <code>FSNode</code>s is made. A single <code>FSNode</code> contains the following metadata about a single file system entry in the current directory:
 
 <table>
     <thead>
@@ -282,29 +284,29 @@ When the program is run in <code>MENU_MODE</code>, one of the most important pre
     </tbody>
 </table>
 
-Since the only <code>FSNode</code> that contains its own full path is the root, all other paths needed have to be built from the a series of concatenations. <code>untraverse()</code> is a recursive helper that builds a node's path, making it trivial in practice, but it should be noted that except the root, no node holds its full path.
+Since the only <code>FSNode</code> that contains its own full path is the root, all other paths needed have to be built from a series of concatenations. <code>untraverse()</code> is a recursive helper that builds a node's path, making it trivial in practice, but it should be noted that except for the root, no node holds its full path.
 
 Less conveniently, this also means that the entire tree depends on the root node. Without it, or if it were lost/freed before the subsequent nodes, the entire tree would be leaked. There is only one entry point to the tree, and it must be carefully guarded, hence <code>MGMT</code>'s two <code>FSNode</code> fields. One holds the 'master' root while the other holds the currently selected entry (file or folder). When finished, <code>free_rfs()</code> takes the root and recursively frees the entire tree along with its children.
 
-When a selection is made, menu.c populated <code>MGMT</code>'s <code>cd</code> field with the selection. If a directory, the Menu is rerun with the selected directory, showing it's contents the same way as the original. If the selection was a file, the editor is opened with the active mutability state, and on return/exit, <code>menu_runner()</code> sets <code>MGMT</code>'s <code>cd</code> field *to the files' parent*, so when the editor is exited, the Menu is reopened with the directory from which you came.
+When a selection is made, menu.c populates <code>MGMT</code>'s <code>cd</code> field with the selection. If a directory, the menu is rerun with the selected directory, showing its contents the same way as the original. If the selection was a file, the editor is opened with the active mutability state, and on return/exit, <code>menu_runner()</code> sets <code>MGMT</code>'s <code>cd</code> field *to the file's parent*, so when the editor is exited, the menu is reopened with the directory from which you came.
 
 ### LOGGING OFF BY ONE
 
-I have to admit, this ones weird, but I enjoy it. The <code>err_lvl</code> enum is indexed to the values 0-4 (0 = <code>DEBUG</code>, 4 = <code>CRITICAL</code>) but <code>print_err()</code> is called with levels 1-5. The rationale behind this error-prone architecture is clarity at call sites & a fully silenced verbosity option. When <code>print_err()</code> is called with a level, the <code>precurse()</code> function writes the error level enum'd & escaped to appropriate color. Then, when in <code>flush_logs()</code>, the function checks to see which, if any, errors were printed out at a level >= the verbosity.
+I have to admit, this one is weird, but I enjoy it. The <code>err_lvl</code> enum is indexed to the values 0-4 (0 = <code>DEBUG</code>, 4 = <code>CRITICAL</code>), but <code>print_err()</code> is called with levels 1-5. The rationale behind this error-prone architecture is clarity at call sites & a fully silenced verbosity option. When <code>print_err()</code> is called with a level, the <code>precurse()</code> function writes the error level enumerated & escaped to the appropriate color. Then, when in <code>flush_logs()</code>, the function checks to see which, if any, errors were printed out at a level >= the verbosity.
 
-**This is how a fully-silenced option is possible.** If <code>flush_logs()</code> is ran with verbosity of 5, no logging level can equal it, and therefore none are showed. Quirky, but convenient.
+**This is how a fully-silenced option is possible.** If <code>flush_logs()</code> is run with verbosity of 5, no logging level can equal it, and therefore none are shown. Quirky, but convenient.
 
 ### MENU'S VIRTUAL GRID
 
-To get the Menu's entries listed aesthetically, <code>order_rfs()</code> recursively sorts each FSNode to put their directories before their files. From there, the longest filename is recorded and used to set the minimum column width of the Menu's grid, and which determines the number of columns to make. The number of directory-only rows is found by comparing the current directory count to the column count.
+To get the Menu's entries listed aesthetically, <code>order_rfs()</code> recursively sorts each FSNode to put their directories before their files. From there, the longest filename is recorded and used to set the minimum column width of the menu's grid, which determines the number of columns to make. The number of directory-only rows is found by comparing the current directory count to the column count.
 
 **At this point, there is a (potentially only partially filled) series of rows containing only directories**.
 
-To distinctly show the two types of entries, the files are listed **on the next empty line**. This makes a 'virtual grid' of the Menu's entries which, crucially, does not represent all real values: multiple 'entries' could be non-existent if relying solely on the virtual grid.
+To distinctly show the two types of entries, the files are listed **on the next empty line**. This makes a 'virtual grid' of the menu's entries which, crucially, does not represent all real values: multiple 'entries' could be non-existent if relying solely on the virtual grid.
 
 **Example**: If there are 5 directories and 4 columns, the directories' row will span 2 rows, and 3 of the second row's 'entries' will not have real values.
 
-To compensate for these values, the cursor's selection on-screen has to be 'skipped' over non-existent values to ensure they can't be highlighted, or selected. To do so, there are some simple conditionals:
+To compensate for these values, the cursor's selection on-screen has to be 'skipped' over non-existent values to ensure they can't be highlighted or selected. To do so, there are some simple conditionals:
 - Is the choice less than the number of directories?
     - YES: choice = choice
     - NO: choice  = first_file_row + (choice - num_of_dirs)
@@ -313,9 +315,9 @@ If the selection is NOT within the valid directories, it needs to be remapped. T
 
 ### PAD & BUFFER GROWTH
 
-The pad's sizing strategy, and the Buffer's, is not to find out how much is needed and allocating only that amount, but rather checking if the current amount is adequate, and if not, doubling it. This results in less reallocation calls than granular strategies.
+The pad's sizing strategy, and the Buffer's, is not to find out how much is needed and allocate only that amount, but rather to check if the current amount is adequate, and if not, double it. This results in fewer reallocation calls than granular strategies.
 
-Neither the pad or the Buffer are ever shrunk; they only ever get allocated *more* room. If a char is deleted or the number of lines are reduced, neither one's memory is worth attempting to shrink. Both get generously sized and called often to grow, because too little memory is much more of a problem than too much.
+Neither the pad nor the Buffer is ever shrunk; they only ever get allocated *more* room. If a char is deleted or the number of lines is reduced, neither one's memory is worth attempting to shrink. Both get generously sized and called often to grow, because too little memory is much more of a problem than too much.
 
 ### SMART INDENTING
 
@@ -323,18 +325,18 @@ This was the first 'feature' I made that made it feel like a text editor instead
 
 Contrarily, if a user types a character that matches a character of a *different* preset list, their cursor is de-dented *on the same line* ***before the character is written***.
 
-*Additionally, if the cursor's column != indent_level * indent_width, the indent is repaired, or attempted to, by forcing it to the nearest valid indent column & position.*
+*Additionally, if the cursor's column != indent_level * indent_width, the indent is repaired, or attempted to be, by forcing it to the nearest valid indent column & position.*
 
 ### EMPTY LINES
 
-Empty lines created while 'smart' indenting get truncated, as well as empty lines when the buffer is written out (the file's saved). Its a pretty aggressive behavior and definitely should be noted.
+Empty lines created while 'smart' indenting get truncated, as well as empty lines when the buffer is written out (the file's saved). It's a pretty aggressive behavior and definitely should be noted.
 
 Example of 'smart' indent empty lines truncated:
 
 User types `{` and Returns:
 ```
 {
-    | <-cursor lands here, indented by 4 spaces
+    | <- cursor lands here, indented by 4 spaces
 ```
 Return is immediately entered again, and the cursor's row increases, but the indent does not change:
 ```
@@ -342,21 +344,21 @@ Return is immediately entered again, and the cursor's row increases, but the ind
 ((this line has been cleared of spaces))
     | <- cursor is now here
 ```
-The previously indented line is now empty, and navigating to it will drop the cursor to column 0. Return again will repeat the same behavior.
+The previously indented line is now empty, and navigating to it will drop the cursor to column 0. Subsequent returns will repeat the same behavior.
 
 ### TABS
 
-Literal tabs (<code>'\t'</code>) are never used for indents, ever, and having them in the file would likely make the editor show incorrect, or corrupted, file contents.\
-**VERIFIED**; when editing a Makefile that uses <code>\t</code>, the spacing was actually correct, but deleting the characters that make up the <code>\t</code> corrupted the line and likely did not do what the editor was showing.
+Literal tabs (<code>'\t'</code>) are never used for indents, ever, and having them in the file would likely make the editor show incorrect or corrupted file contents.\
+**VERIFIED**: when editing a Makefile that uses <code>\t</code>, the spacing was actually correct, but deleting the characters that make up the <code>\t</code> corrupted the line and likely did not do what the editor was showing.
 
 <hr>
 
 ## BACKGROUND
 
-I wrote this program because I don't enjoy using any popular C.L.I. text-editors. Nano was my go-to, but I didn't love its U.I. or configuration options, Micro does too much, Vim is a whole thing, and testing/learning a new one sounded dreadful. What self respecting programmer would get to this point and *not* write their own editor? Well, this kind, because I had no idea how.
+I wrote this program because I don't enjoy using any popular C.L.I. text editors. Nano was my go-to, but I didn't love its U.I. or configuration options; Micro does too much; Vim is a whole thing, and testing/learning a new one sounded dreadful. What self-respecting programmer would get to this point and *not* write their own editor? Well, this kind, because I had no idea how.
 
-After finishing the main content from cs50's introduction to C, I fell in love with the language and chose this for my final project. The components required to build this program varied widely in difficulty and subject, so I do feel like I have covered a wide variety of applications & problems with C. Among them are communications with the underlying OS (POSIX only), interacting with the filesystem, Regular Expressions (POSIX Compliant RegEx, which I found strange), Ncurses basics, & memory management, & a lot more.
+After finishing the main content from CS50's Introduction to C, I fell in love with the language and chose this for my final project. The components required to build this program varied widely in difficulty and subject, so I do feel like I have covered a wide variety of applications & problems with C. Among them are communications with the underlying OS (POSIX only), interacting with the filesystem, Regular Expressions (POSIX-Compliant RegEx, which I found strange), Ncurses basics, & memory management, & a lot more.
 
-I was challenged to think carefully about how complex systems should work together (the editor and buffer are probably the most complex) and forced me to design very intentionally; if I did not know exactly what I was attempting to do, I would inevitably write buggy and inefficient code. Being intentional and iterative in the building process allowed me to go beyond my previous scope and create something I am genuinely proud of and confident in.
+I was challenged to think carefully about how complex systems should work together (the editor and buffer are probably the most complex) and was forced to design very intentionally; if I did not know exactly what I was attempting to do, I would inevitably write buggy and inefficient code. Being intentional and iterative in the building process allowed me to go beyond my previous scope and create something I am genuinely proud of and confident in.
 
-*Personal Note: In my experience, my abilities have been practically limited by Python; I was never confident in its ability to be fast enough to try something like this. C, however, I have trouble making work hard enough to register when its working overtime. It is so gosh dang fast, I felt like ten lightbulbs went off in my head, all at once. C is fast because it does nothing for you! Granular control is always my favorite aspect of software, and Python did not make me feel that way. Everything I did bigger than a simple script had the 800 pound gorilla staring at me; if this isn't stupid efficient, it will be slow. The difference is Python is intuitive, and easy to loop & wrap up. If I make something happen in Python, it just uses C to do it, but it **doesn't ask me how I would like to do it**. Obviously, this is intentional, and the point of Python, but its also why I'll probably never use it again. Middle men are not cool.*
+*Personal Note: In my experience, my abilities have been practically limited by Python; I was never confident in its ability to be fast enough to try something like this. C, however, I have trouble making it work hard enough to register when it's working overtime. It is so gosh darn fast; I felt like ten lightbulbs went off in my head, all at once. C is fast because it does nothing for you! Granular control is always my favorite aspect of software, and Python did not make me feel that way. Everything I did bigger than a simple script had the 800-pound gorilla staring at me; if it isn't stupid efficient, it will be slow. The difference is that Python is intuitive and easier to loop & wrap up in itself. If I make something happen in Python, it just uses C to do it, but it **doesn't ask me how I would like to do it**. Obviously, this is intentional and the point of Python, but it's also why I'll probably never use it again. Middlemen are not cool.*
