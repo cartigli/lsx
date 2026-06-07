@@ -9,8 +9,7 @@ char *s = "this is a multi \
 int sf_strcat(char *a, const char *o, int bufflen)
 {
     if (!a || !o) {
-        print_err(util_src, "unexpected NULL buffer[s] passed to safe strcat",
-            3);
+        LOG_ERRO("unexpected NULL buffer[s] passed");
         return 1;
     }
     int c   = 0;
@@ -21,8 +20,7 @@ int sf_strcat(char *a, const char *o, int bufflen)
 
     if (c >= lim) {
         if (*o != '\0') return 0;
-        print_err(util_src,
-            "out of bounds index in safe strcat; bufflen too small", 3);
+        LOG_ERRO("OUT_OF_BOUNDS index; bufflen too small");
         return 1;
     }
 
@@ -30,8 +28,7 @@ int sf_strcat(char *a, const char *o, int bufflen)
         // bad strcat, kill it to save crash & return error
         if (c >= lim - 1) {
             *(a + c) = '\0';
-            print_err(util_src,
-                "failed to safely concatenate strings; corrupted buffer", 4);
+            LOG_ERRO("failed to safelt concatenate; buffer corrupted");
             return 1;
         }
         // copy o to a's free values one byte at a time
@@ -61,14 +58,12 @@ void usage(void)
         "-v[n]                 set the logging verbosity to [n];"
         " 0 = DEBUG, 4 = CRITICAL\n"
         "\n"
-        "Notes:\n"
+        "notes:\n"
         "A: lx /path/to/dir & lx /path/to/file are the same command;\n"
         "the action to do next is determined by the type of the\n"
         "resulting st_type from the path (i.e., its automatic).\n"
         "B: if passing a path as an argument, it must be the last\n"
         "argument. All other args' or flags' ordering is unimportant.\n"
-        "\n"
-        "max args: [ 4 + a path ]\n"
-        "ex: lx -sz -im v /path/to/entry\n";
+        "\n";
     fprintf(stdout, "%s", use);
 }

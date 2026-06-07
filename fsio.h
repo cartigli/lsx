@@ -1,7 +1,24 @@
 #ifndef FSIO_H
 #define FSIO_H
 
-#include "types.h"
+// POSIZ byte size of a block on disk
+#define ST_BLOCK_SIZE 512
+// maximum chars in a filename's buffer
+#define MAX_FILENAME 1024
+
+/* self-referencing struct for *
+ * recording all filesystem entries found *
+ * note: the root's parents are NULL *
+ * so traversal above it is bounded */
+typedef struct FSNode {
+    int is_dir;
+    long blocks;
+    int n_children;
+    int n_dirs;
+    char name[MAX_FILENAME];
+    struct FSNode **children;
+    struct FSNode *parent;
+} FSNode;
 
 // recursive filesystem indexing, records findings in FSNode's
 int fls_recurse(FSNode *cd, char *tbuff);

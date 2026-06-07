@@ -1,18 +1,19 @@
 #ifndef C_COLOR_H
 #define C_COLOR_H
 
-#include "types.h"
+#include "highlight.h"
 
-
-extern SyntaxDemands C_DEMANDS[];
+extern const SyntaxDemand C_DEMANDS[];
 extern const unsigned int N_C_DEMANDS;
+extern RGXE C_RT_DEMANDS[];
 
 extern const char *C_INDENTABLES;
 extern const char *C_DEDENTABLES;
-extern int C_INDENT_LEN;
+extern const unsigned int C_INDENT_LEN;
 
-extern SyntaxTwins C_TWINTERMS[];
-extern const unsigned int N_C_MULTI_PAIR_DEMANDS;
-
+extern const SyntaxSpan C_TWINTERMS[];
+extern const unsigned int N_C_TWINTERMS;
+extern RGXE C_RT_MXI_DEMANDS[];
+extern RGXE C_RT_MXK_DEMANDS[];
 
 #endif

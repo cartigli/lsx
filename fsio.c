@@ -12,11 +12,11 @@
 #include "fsio.h"
 #include "utils.h"
 
-/* if there is a failure inside fls_recurse, the previously        *
- * allocated children or FSNodes are leaked on return. on error,   *
- * it should recursively free the entry currently being built,     *
- * then set the number of children to the currently indexed count  *
- * before propogating up. That way, the next fls_recurse call only *
+/* if there is a failure inside fls_recurse, the previously
+ * allocated children or FSNodes are leaked on return. on error,
+ * it should recursively free the entry currently being built,
+ * then set the number of children to the currently indexed count
+ * before propogating up. That way, the next fls_recurse call only
  * cleans up ix children from the parent node.                     */
 
 int fls_recurse(FSNode *cd, char *buff)
@@ -24,7 +24,7 @@ int fls_recurse(FSNode *cd, char *buff)
     struct dirent *ent;
     DIR *dir = opendir(buff);
     if (dir == NULL) {
-        print_err(fsio_src, "failed to open directory while recursing", 5);
+        LOG_ERRO("failed to open directory while recursing");
         return 1;
     }
 
@@ -40,15 +40,11 @@ int fls_recurse(FSNode *cd, char *buff)
     int xterm_pl = strlen(buff);
 
     // if the directory is empty, ensure nothing is processed
-    if (cd->n_children <= 0) {
-        cd->children = NULL;
-    } else {
+    if (cd->n_children <= 0) cd->children = NULL;
+    else {
         cd->children = calloc(cd->n_children, sizeof(FSNode *));
         if (!cd->children) {
-            print_err(fsio_src,
-                "failed to allocate memory"
-                " for a directories entries' child nodes",
-                1);
+            LOG_ERRO("failed to allocate memory for children nodes");
             closedir(dir);
             return 1;
         }
@@ -63,10 +59,7 @@ int fls_recurse(FSNode *cd, char *buff)
 
         FSNode *entry = calloc(1, sizeof(FSNode));
         if (entry == NULL) {
-            print_err(fsio_src,
-                "failed to allocate memory for a"
-                " FSNode instance while recursing",
-                4);
+            LOG_ERRO("failed to allocate memory for a FSNode while recursing");
             closedir(dir);
             cd->n_children = ix;
             return 1;
@@ -76,9 +69,8 @@ int fls_recurse(FSNode *cd, char *buff)
         entry->parent = cd;
 
         int dtype;
-        if (ent->d_type == DT_DIR) {
-            dtype = 1;
-        } else if (ent->d_type == DT_REG) {
+        if (ent->d_type == DT_DIR) dtype = 1;
+        else if (ent->d_type == DT_REG) {
             dtype = 0;
         } else {
             free_rfs(entry);
@@ -88,10 +80,7 @@ int fls_recurse(FSNode *cd, char *buff)
 
         if (sf_strcat(buff, "/", MAX_FILENAME) ||
             sf_strcat(buff, ent->d_name, MAX_FILENAME)) {
-            print_err(fsio_src,
-                "safe cat returned an error from"
-                " concatenating a path while recursing",
-                4);
+            LOG_WARN("sf_strcat returned an error while recursing");
             buff[xterm_pl] = '\0'; // reset corrupted buffer
             closedir(dir);
             free_rfs(entry);
@@ -105,10 +94,7 @@ int fls_recurse(FSNode *cd, char *buff)
         if (dtype == 0) {
             long blocks = fl_blocks(buff);
             if (blocks == -2) {
-                print_err(fsio_src,
-                    "failed to find blocks used"
-                    " for a file on disk while recursing",
-                    2);
+                LOG_WARN("failed to find blocks used for file");
                 buff[xterm_pl] = '\0';
                 free_rfs(entry);
                 cd->n_children--;
@@ -117,17 +103,15 @@ int fls_recurse(FSNode *cd, char *buff)
             entry->blocks = blocks;
         } else if (dtype == 1) {
             if (fls_recurse(entry, buff)) {
+                LOG_ERRO("fls is propogating an error; file indexing failing");
                 closedir(dir);
                 free_rfs(entry);
                 cd->n_children = ix;
-                // propogate the error up
-                return 1;
+                return 1; // propogate the error up
             }
         }
 
-        if (dtype == 1) {
-            cd->n_dirs++;
-        }
+        if (dtype == 1) cd->n_dirs++;
 
         cd->children[ix] = entry;
         ix++;
@@ -136,10 +120,7 @@ int fls_recurse(FSNode *cd, char *buff)
         buff[xterm_pl] = '\0';
     }
     if (closedir(dir) == -1) {
-        print_err(fsio_src,
-            "failed to close directory"
-            " safely while recursing",
-            3);
+        LOG_WARN("failed to close dir safely after recursing");
     }
     return 0;
 }
@@ -151,10 +132,7 @@ int df_type(const char *path)
     if (S_ISLNK(st.st_mode)) return -1;    // symlink
     if (S_ISREG(st.st_mode)) return 0;     // file
     if (S_ISDIR(st.st_mode)) return 1;     // directory
-    print_err(fsio_src,
-        "failed to check or get the types"
-        " of an entry; unkown type",
-        3);
+    LOG_WARN("failed to find a type of a entry");
     return -3; // god forbid - unkown type
 }
 
@@ -162,10 +140,7 @@ long fl_blocks(char *path)
 {
     struct stat st;
     if (stat(path, &st) == -1) {
-        print_err(fsio_src,
-            "failed to get the disk usage"
-            " of a file; unkown disk usage",
-            3);
+        LOG_WARN("failed to get the disk-usage of a file");
         return -2;
     }
     return (long)st.st_blocks;
@@ -202,10 +177,7 @@ void order_fs(FSNode *cd)
 int max_rblocks(FSNode *cd)
 {
     if (cd == NULL) {
-        print_err(fsio_src,
-            "unexpected NULL *cd passed"
-            " to max_rblocks",
-            3);
+        LOG_WARN("unexpected NULL cd passed");
         return 0;
     }
     long max    = 0;
@@ -220,10 +192,7 @@ int max_rblocks(FSNode *cd)
     if (allmax < max) allmax = max;
 
     if (allmax == 0) {
-        print_err(fsio_src,
-            "failed to find any valid"
-            " disk use (at all)",
-            3);
+        LOG_WARN("failed to find ANY valid disk-usage");
         return 0;
     }
 
@@ -239,6 +208,7 @@ int max_rblocks(FSNode *cd)
 long max_blocks(FSNode *cd)
 {
     if (cd == NULL) return 0;
+
     long max    = 0;
     long allmax = 0;
     if (cd->n_children) {
@@ -254,6 +224,7 @@ long max_blocks(FSNode *cd)
 void free_rfs(FSNode *cd)
 {
     if (cd == NULL) return;
+
     for (int i = 0; i < cd->n_children; i++) {
         free_rfs(cd->children[i]);
     }

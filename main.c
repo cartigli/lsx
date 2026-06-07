@@ -3,12 +3,38 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "colors.h"
 #include "config.h"
 #include "error.h"
 #include "fsio.h"
 #include "highlight.h"
 #include "main.h"
 #include "utils.h"
+
+static int arg_parse_path(char *argv, Config *config);
+static int arg_parse(int argc, char *argv[], Config *config);
+
+int main(int argc, char *argv[])
+{
+    char log_dest[MAX_FILENAME];
+    if (init_logging(log_dest)) return 1;
+    LOG_DEBUG("logging file path: %s", log_dest);
+
+    Config config;
+    initialize_config(&config);
+
+    if (arg_parse(argc, argv, &config)) {
+        LOG_WARN("bad arguments");
+        usage();
+    } else {
+        run_win(&config);
+    }
+
+    free(config.root);
+    flush_logs(log_dest, config.verbosity);
+
+    return 0;
+}
 
 static int arg_parse_path(char *argv, Config *config)
 {
@@ -22,6 +48,7 @@ static int arg_parse_path(char *argv, Config *config)
         config->mode = MENU_MODE;
         return 1;
     } else {
+        LOG_INFO("path as arg not known; trying again with c.w.d.");
         char fp[MAX_FILENAME];
         if (getcwd(fp, MAX_FILENAME) != NULL) {
             if (sf_strcat(fp, "/", MAX_FILENAME) ||
@@ -37,9 +64,11 @@ static int arg_parse_path(char *argv, Config *config)
                 return 1;
             }
         } else {
+            LOG_ERRO("failed to find the c.w.d.");
             return 0;
         }
     }
+    LOG_WARN("no known entries at path");
     return 0;
 }
 
@@ -47,16 +76,14 @@ static int arg_parse(int argc, char *argv[], Config *config)
 {
     // returns 0 if args are valid & parsed correctly; any error is 1
 
-    config->mode = MENU_MODE;
-    if (argc == 1) {
-        return 0;
-    }
+    config->mode = MENU_MODE; // default
+    if (argc == 1) return 0;
 
     // check if the last flag is a path
     // if it is, iterate through argc - 1
     int flag_end = argc;
-    if (arg_parse_path(argv[argc - 1], config)) {
-        print_inf(main_src, "path passed as arg OK");
+    if (argv[argc - 1][0] != '-' && arg_parse_path(argv[argc - 1], config)) {
+        LOG_DEBUG("path passed as argument: OK");
         strcpy(config->root, argv[argc - 1]);
         flag_end--;
     }
@@ -65,58 +92,33 @@ static int arg_parse(int argc, char *argv[], Config *config)
         char *argi = argv[i];
         if (strcmp("show_size", argi) == 0 || strcmp("-sz", argi) == 0) {
             config->hide_size = 0;
-            print_inf(main_src, "hide sizes disabled");
+            LOG_DEBUG("hide sizes turned off");
 
         } else if (strcmp("immutable", argi) == 0 || strcmp("-im", argi) == 0) {
             config->mutable = 0;
-            print_inf(main_src, "mutability disabled");
+            LOG_DEBUG("mutability turned off");
         } else if (strcmp("no_edit", argi) == 0 || strcmp("-ne", argi) == 0) {
             config->mutable = 0;
-            print_inf(main_src, "mutability disabled");
+            LOG_DEBUG("mutability turned off");
 
         } else if (strcmp("silent", argi) == 0 || strcmp("-s", argi) == 0) {
-            // silent: logging level CRITICAL
-            config->verbosity = 5;
+            config->verbosity = 5; // silent: logging level CRITICAL
 
         } else if (strcmp("verbose", argi) == 0 || strcmp("-v", argi) == 0) {
-            // verbose: logging level DEBUG
-            config->verbosity = 0;
+            config->verbosity = 0; // verbose: logging level DEBUG
 
             // setting a specific verbosity: -v5, -v1, -v3, etc.,
         } else if (argi[0] == '-' && argi[1] == 'v') {
             if (argi[2] > '5' || argi[2] < '1') {
-                print_err(main_src,
-                    "invalid flag; verbosity"
-                    " must be between 1 - 5",
-                    3);
+                LOG_WARN("invalid verbosity flag; must be in {0..5}");
                 return 1;
             }
             config->verbosity = atoi(&argi[2]);
         } else {
-            print_err(main_src, "invalid arg: flag not recognized", 3);
+            LOG_WARN("invalid flag: unknown argument");
             return 1;
         }
     }
-    return 0;
-}
-
-int main(int argc, char *argv[])
-{
-    init_logging();
-
-    Config config;
-    initialize_config(&config);
-
-    if (arg_parse(argc, argv, &config)) {
-        usage();
-    } else {
-        run_win(&config);
-    }
-
-    print_inf(main_src, "main fin; flushing logs & freeing config");
-    flush_logs(config.verbosity);
-    free(config.root);
-
     return 0;
 }
 
@@ -129,15 +131,15 @@ void run_win(Config *config)
     refresh(); // ensure getmaxyx gets current vals
 
     if (config->mode == EDIT_MODE) {
-        print_inf(main_src, "mode: EDIT; running editor");
-        pretty_runner(config, config->root, config->mutable);
+        LOG_DEBUG("mode: EDIT; running editor");
+        pretty_runner(config->root, config->mutable);
     } else if (config->mode == MENU_MODE) {
-        print_inf(main_src, "mode: MENU; running menu");
+        LOG_DEBUG("mode: MENU; running menu");
         menu_runner(config);
     }
 
     endwin();
-    print_inf(main_src, "runner fin; windows torn down");
+    LOG_DEBUG("runner fin; windows torn down");
 }
 
 void menu_runner(Config *config)
@@ -152,23 +154,26 @@ void menu_runner(Config *config)
         path[0] = '\0';
         switch (mgmt.intention) {
             case 0: // quit
+                LOG_DEBUG("intention: QUIT");
                 goto fin;
             case 1:
                 break; // do nothing
             case 2:    // read
                 if (untraverse(mgmt.cd, path)) {
+                    LOG_ERRO("untraverse error while building choice's path");
                     goto fin;
                 }
-                pretty_runner(config, path, 0);
+                pretty_runner(path, 0);
 
                 mgmt.cd = mgmt.cd->parent;
                 path[0] = '\0';
                 break;
             case 3: // edit
                 if (untraverse(mgmt.cd, path)) {
+                    LOG_ERRO("untraverse error while building choice's path");
                     goto fin;
                 }
-                pretty_runner(config, path, 1);
+                pretty_runner(path, 1);
 
                 mgmt.cd = mgmt.cd->parent;
                 path[0] = '\0';
@@ -188,14 +193,14 @@ fin:
     if (mgmt.root) {
         free_rfs(mgmt.root);
     }
-    print_inf(main_src, "menu fin; window deleted & memory freed");
+    LOG_DEBUG("menu fin; window deleted & memory freed");
 }
 
 void menu_init(MGMT *mgmt, Mstate *ms, Config *config)
 {
     if (config->root[0] == '\0') {
         if (getcwd(config->root, MAX_FILENAME) == NULL) {
-            print_err(main_src, "failed to find the c.w.d.", 5);
+            LOG_CRIT("failed to find the c.w.d.");
             return;
         }
     }
@@ -203,24 +208,19 @@ void menu_init(MGMT *mgmt, Mstate *ms, Config *config)
     FSNode *cd = NULL;
     cd         = calloc(1, sizeof(FSNode));
     if (!cd) {
-        print_err(main_src,
-            "failed to allocate memory"
-            "for c.w.d.'s FSNode",
-            5);
+        LOG_CRIT("NOMEM for c.w.d. FSNode");
         return;
     }
 
     char buffer[MAX_FILENAME];
     strcpy(cd->name, config->root);
     strcpy(buffer, config->root);
-    
+
     if (fls_recurse(cd, buffer)) {
         free(cd);
         return;
     }
     order_rfs(cd);
-
-    // cd->parent = NULL;
 
     int block_cushion = max_rblocks(cd);
 
@@ -242,8 +242,6 @@ void menu_init(MGMT *mgmt, Mstate *ms, Config *config)
 
     mgmt->config    = config;
     mgmt->padd_size = block_cushion;
-
-    print_inf(main_src, "menu vars initialized");
 }
 
 void new_management(MGMT *mgmt)
@@ -300,11 +298,7 @@ void populate_MS(Mstate *ms, FSNode *cd, int hide_size, int block_size)
     if (ms->n_cols > cd->n_children) {
         ms->n_cols = cd->n_children;
     }
-    if (ms->n_cols < 1) {
-        ms->n_cols = 1;
-    }
-
-    // cd->parent = NULL;
+    if (ms->n_cols < 1) ms->n_cols = 1;
 
     // calculate a virtual grid of n choices given n dirs
     int dir_rows = (cd->n_dirs) ? ((cd->n_dirs - 1) / ms->n_cols) + 1 : 0;
@@ -316,7 +310,7 @@ void populate_MS(Mstate *ms, FSNode *cd, int hide_size, int block_size)
     ms->v_lim = ms->ff_row + (cd->n_children - cd->n_dirs);
 }
 
-void pretty_runner(Config *config, const char path[], int mutable)
+void pretty_runner(const char path[], int mutable)
 {
     Buffer *b = NULL;
     RunTime rt;
@@ -324,73 +318,72 @@ void pretty_runner(Config *config, const char path[], int mutable)
 
     b = buffer_load(path);
     if (!b) {
+        LOG_CRIT("buffer load failed");
         goto teardown;
     }
 
-    initialize_cursor(&curs, config);
+    initialize_cursor(&curs);
 
     init_rt_vars(&rt, b);
 
-    if (!config->colors_loaded) {
-        if (load_colors()) {
-            return;
-        }
+    if (load_colors()) {
+        LOG_ERRO("failed to load colors");
+        goto teardown;
     }
-    config->colors_loaded = 1;
 
     language l;
     l = detect_lang(path);
-    if (compile_regex(l)) return;
 
-    char bf[42];
-    snprintf(bf, sizeof(bf), "detected lang: %s", LANG_NAMES[l].l);
-    print_inf(main_src, bf);
-
-    curs_set(1);
-
-    print_inf(main_src, "editor runtime vars initialized");
-
-    alter_file(b, &rt, &curs, path, mutable);
-
-teardown:
-    free_reg();
-    if (b) {
-        free(b);
+    LangComponents lc = {0};
+    cache_regex(&lc, l);
+    if (lc.demands == NULL) {
+        LOG_ERRO("failed to compile/cache syntax demands");
+        goto teardown;
     }
 
-    config->colors_loaded = 0;
+    // generate a tmp name to check for changes, if written out
+    FILE *tmp = tmpfile();
+    if (!tmp) {
+        LOG_ERRO("NULL temp FILE * pointer produced");
+        goto teardown;
+    }
+
+    curs_set(1);
+    alter_file(b, &rt, &curs, &lc, path, tmp, mutable);
+    fclose(tmp);
+
+teardown:
+    free_reg(&lc);
+    if (b) free(b);
 
     curs_set(0);
     clear(); // clear screen before returning
     refresh();
     touchwin(stdscr); // 'wake' screen; force full repaint next refresh
 
-    print_inf(main_src, "editor cleaned & memory freed");
+    LOG_DEBUG("editor fin; window cleaned & memory freed");
 }
 
-void initialize_cursor(Cursor *curs, Config *config)
+void initialize_cursor(Cursor *curs)
 {
     curs->row = 0;
     curs->col = 0;
 
     curs->smsg   = NULL;
     curs->sprint = 0;
-
-    curs->wo     = 0;
     curs->action = 0;
+    curs->wo     = 0;
 
-    curs->indent_l   = 0;
-    curs->indent_len = config->indent_len;
+    curs->indent_l = 0;
 }
 
 void init_rt_vars(RunTime *rt, Buffer *b)
 {
     rt->pad = NULL;
+    rt->ps  = PASTE_IDLE;
 
     rt->pad_row = 0;
     rt->pad_col = 0;
-
-    rt->ps = PASTE_IDLE;
 
     rt->max_line = 0;
     for (int i = 0; i < b->n_lines; i++) {
@@ -416,10 +409,24 @@ language detect_lang(const char path[])
 
     for (int i = 0; i < len; i++) {
         if (path[i] == '.') {
-            if (path[i + 1] == 'c' || path[i + 1] == 'h') {
+            if ((path[i + 1] == 'c' || path[i + 1] == 'h') &&
+                path[i + 2] == '\0') {
                 l = c;
-            } else if (path[i + 1] == 'p' && path[i + 2] == 'y') {
+                LOG_DEBUG("lang detected: C");
+            } else if (path[i + 1] == 'p' && path[i + 2] == 'y' &&
+                path[i + 3] == '\0') {
                 l = py;
+                LOG_DEBUG("lang detected: Python");
+            } else if (path[i + 1] == 't' && path[i + 2] == 'x' &&
+                path[i + 3] == 't' && path[i + 4] == '\0') {
+                l = md;
+                LOG_DEBUG("lang detected: Markdown");
+            } else if (path[i + 1] == 'm' && path[i + 2] == 'd' &&
+                path[i + 3] == '\0') {
+                l = md;
+                LOG_DEBUG("lang detected: Markdown");
+            } else {
+                LOG_DEBUG("lang detected: None");
             }
         }
     }

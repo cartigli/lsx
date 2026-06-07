@@ -179,9 +179,9 @@ void menu(MGMT *mgmt)
                 }
         }
 
-        /* if the actual choice is an empty dir slot of the *
-         * virtual grid and its less than the first file row, *
-         * then 'skip' or 'jump' the cursor to the next true file */
+        // if the actual choice is an empty dir slot of the
+        // virtual grid and its less than the first file row,
+        // then 'skip' or 'jump' the cursor to the next true file
 
         if (ms->v_choice >= cd->n_dirs && ms->v_choice < ms->ff_row) {
             switch (ch) {

@@ -181,7 +181,7 @@ Highlighting in this program is computed from matches found of preset RegEx expr
 
 #### The Order of Expressions Is Imperative!
 
-The sets of <code>SyntaxDemands</code> (structs holding each regular expression, type, and color) are ordered carefully to allow enforcement of precedence for matched characters or text. Their type is set in an enum, & an error is raised if they are out of order.
+The sets of <code>SyntaxDemands</code> (structs holding each regular expression, type, and color) are ordered carefully to allow enforcement of precedence for matched characters or text. Their type is set in an enum.
 
 In practice, this means nothing gets colored if it's already colored. The earlier an expression is, the higher its priority.
 
@@ -192,12 +192,6 @@ $\textsf{\color{gray} // comment w.a "string"}$
 $\textsf{\color{gray} // comment w.a \ } \textsf{\color{yellow} "(incorrectly colored) string"}$
 
 **Subtlety**: A substitution inside a string is an expression run before the string's expression, which allows the inner substitution to be detected & colored before its enclosing string is highlighted. So its mechanics are the same as above but inverted.
-
-#### GLOBAL REGEX CACHE
-
-When a file is being loaded with a known & supported language, the program will compile & cache the regular expressions. This lets the caller (<code>pretty_runner()</code>) manage the compiled expressions' memory & life-cycle. The compiled expressions, and count thereof, are globally accessible once compiled, allowing the editor to grab whatever is currently accessible when it is run. This means:\
-- A: A language of one file won't be used to render the next one opened. 
-- B: If no files are opened, no expressions are compiled.
 
 #### BLANK
 
@@ -290,15 +284,9 @@ Less conveniently, this also means that the entire tree depends on the root node
 
 When a selection is made, menu.c populates <code>MGMT</code>'s <code>cd</code> field with the selection. If a directory, the menu is rerun with the selected directory, showing its contents the same way as the original. If the selection was a file, the editor is opened with the active mutability state, and on return/exit, <code>menu_runner()</code> sets <code>MGMT</code>'s <code>cd</code> field *to the file's parent*, so when the editor is exited, the menu is reopened with the directory from which you came.
 
-### LOGGING OFF BY ONE
-
-I have to admit, this one is weird, but I enjoy it. The <code>err_lvl</code> enum is indexed to the values 0-4 (0 = <code>DEBUG</code>, 4 = <code>CRITICAL</code>), but <code>print_err()</code> is called with levels 1-5. The rationale behind this error-prone architecture is clarity at call sites & a fully silenced verbosity option. When <code>print_err()</code> is called with a level, the <code>precurse()</code> function writes the error level enumerated & escaped to the appropriate color. Then, when in <code>flush_logs()</code>, the function checks to see which, if any, errors were printed out at a level >= the verbosity.
-
-**This is how a fully-silenced option is possible.** If <code>flush_logs()</code> is run with verbosity of 5, no logging level can equal it, and therefore none are shown. Quirky, but convenient.
-
 ### MENU'S VIRTUAL GRID
 
-To get the Menu's entries listed aesthetically, <code>order_rfs()</code> recursively sorts each FSNode to put their directories before their files. From there, the longest filename is recorded and used to set the minimum column width of the menu's grid, which determines the number of columns to make. The number of directory-only rows is found by comparing the current directory count to the column count.
+To get the Menu's entries listed aesthetically, <code>order_rfs()</code> recursively sorts each <code>FSNode</code> to put their directories before their files. From there, the longest filename is recorded and used to set the minimum column width of the menu's grid, which determines the number of columns to make. The number of directory-only rows is found by comparing the current directory count to the column count.
 
 **At this point, there is a (potentially only partially filled) series of rows containing only directories**.
 

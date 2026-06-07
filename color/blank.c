@@ -1,27 +1,32 @@
 #include "blank.h"
 
-
-SyntaxTwins BLANK_TWINTERMS[] = {
+//  DUMMIES
+const SyntaxSpan BLANK_TWINTERMS[] = {
     {
-        .ix = { .expression = "", .color_code = LTGRAY, .type = NUMERICALS, },
-        .kx = { .expression = "", .color_code = LTGRAY, .type = NUMERICALS, },
+        .init_rgx = "",
+        .kill_rgx = "",
+        .attr     = A_NORMAL,
+        .color    = OFFWHITE,
     },
 };
 
-
-SyntaxDemands BLANK_DEMANDS[] = {
-    /*  FAKES */
+const SyntaxDemand BLANK_DEMANDS[] = {
     {
-        .expression = "",
-        .color_code = PURPLE, 
-        .type = NUMERICALS
-    }
+        .rgx   = "",
+        .color = OFFWHITE,
+        .attr  = A_NORMAL,
+    },
 };
 
-const char *BLANK_INDENTABLES = { "{[(" };
-const char *BLANK_DEDENTABLES = { "}])" };
-int BLANK_INDENT_LEN = 4;
+const char *BLANK_INDENTABLES       = "([";
+const char *BLANK_DEDENTABLES       = ")]";
+const unsigned int BLANK_INDENT_LEN = 4;
 
-const unsigned int N_BLANK_DEMANDS = 1;
+const unsigned int N_BLANK_DEMANDS =
+    sizeof(BLANK_DEMANDS) / sizeof(BLANK_DEMANDS[0]);
+const unsigned int N_BLANK_TWINTERMS =
+    sizeof(BLANK_TWINTERMS) / sizeof(BLANK_TWINTERMS[0]);
 
-const unsigned int N_BLANK_TWINTERMS = 1;
+RGXE BLANK_RT_DEMANDS[sizeof(BLANK_DEMANDS) / sizeof(BLANK_DEMANDS[0])];
+RGXE BLANK_RT_MXI_DEMANDS[sizeof(BLANK_TWINTERMS) / sizeof(BLANK_TWINTERMS[0])];
+RGXE BLANK_RT_MXK_DEMANDS[sizeof(BLANK_TWINTERMS) / sizeof(BLANK_TWINTERMS[0])];
